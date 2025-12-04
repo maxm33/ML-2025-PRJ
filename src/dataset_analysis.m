@@ -1,21 +1,17 @@
-% Loading training dataset (500 training examples)
+%% Loading training dataset (500 training examples)
 Dataset_TR = readtable('../data/TR/ML-CUP25-TR.csv');
 
-% Decomposing table
-inputs = Dataset_TR(:, 2:13);
-outputs = Dataset_TR(:, 14:end);
+%% Decomposing table
+inputs = Dataset_TR(:, 2:13);    % 12 inputs
+outputs = Dataset_TR(:, 14:end); % 4 outputs
 
-% Relevant stats calculations
-overallMaxInput = max(max(inputs{:, :}));
-overallMinInput = min(min(inputs{:, :}));
-overallMaxOutput = max(max(outputs{:, :}));
-overallMinOutput = min(min(outputs{:, :}));
-maxInputValuesPerColumn = max(inputs);
-minInputValuesPerColumn = min(inputs);
-maxOutputValuesPerColumn = max(outputs);
-minOutputValuesPerColumn = min(outputs);
+%% Relevant stats calculations
+overallInputRange = [min(min(inputs{:,:})), max(max(inputs{:,:}))];
+overallOutputRange = [min(min(outputs{:,:})), max(max(outputs{:,:}))];
+inputRangePerColumn = [min(inputs); max(inputs)];
+outputRangePerColumn = [min(outputs); max(outputs)];
 
-% Examples of random plotting of output 4D-points
+%% Examples of random plotting of target 4D-points
 figure;
 scatter3(outputs.TARGET_1, outputs.TARGET_2, outputs.TARGET_3, 40, outputs.TARGET_4, 'filled');
 colorbar;
