@@ -1,77 +1,95 @@
-%% Loading training dataset (500 training examples)
+%% ===================================
+% LOADING TRAINING DATA (500 patterns)
+% ====================================
 Dataset_TR = readtable('../data/TR/ML-CUP25-TR.csv');
 
-%% Decomposing table
-inputs_TR = Dataset_TR(:, 2:13);    % 12 inputs
-outputs_TR = Dataset_TR(:, 14:end); % 4 outputs
+inputs_TR  = Dataset_TR{:, 2:13};   % 12 inputs
+outputs_TR = Dataset_TR{:, 14:end}; % 4 outputs
 
-%% Least Square minimization through SVD
+N = size(inputs_TR,1);
 
-% Input normalization (zero-mean & unit variance)
-A_raw = table2array(inputs_TR);
-mu_TR = mean(A_raw);
-sigma_TR = std(A_raw);
-A = (A_raw - mu_TR) ./ sigma_TR;
+%% ===================================
+% I/O NORMALIZATION (zero-mean / unit-variance)
+% ====================================
 
-A = [ones(size(A,1), 1) A];    % adding bias column
+% Inputs
+mu_in  = mean(inputs_TR, 1);
+std_in = std(inputs_TR, 0, 1);
 
-% Output normalization
-B = table2array(outputs_TR);
-B = (B - mean(B)) ./ std(B);
+A = (inputs_TR - mu_in) ./ std_in;
 
-X = pinv(A) * B;
+A = [ones(N,1) A];      % added bias column
 
-%% Loading blind dataset (1000 test examples)
+% Outputs
+mu_out  = mean(outputs_TR, 1);
+std_out = std(outputs_TR, 0, 1);
+
+B = (outputs_TR - mu_out) ./ std_out;
+
+%% ===================================
+% WEIGHTS CALCULATION
+% ====================================
+
+lambda = 1;             % regularization factor
+
+I = eye(size(A,2)); 
+I(1,1) = 0;             % no regularization on bias term
+
+X = pinv(A) * B;        % SVD
+
+%% ===================================
+% PREDICTIONS ON TRAINING DATA
+% ====================================
+
+B_pred_norm = A * X;
+B_pred = B_pred_norm .* std_out + mu_out;   % denormalized outputs
+
+%% ====================================
+% ACCURACY MEASURAMENT
+% =====================================
+
+RMSE_norm = sqrt(mean((B - B_pred_norm).^2, 1));
+RMSE = sqrt(mean((outputs_TR - B_pred).^2, 1));
+
+disp("RMSE per output (normalized):");
+disp(RMSE_norm);
+
+disp("RMSE per output (original scale):");
+disp(RMSE);
+
+%% =====================================
+% PREDICTIONS ON BLIND TEST DATA (1000 patterns)
+% ======================================
+%{
 Dataset_TS = readtable('../data/TS/ML-CUP25-TS.csv');
+inputs_TS = Dataset_TS{:, 2:13};
 
-%% Extracting test inputs
-inputs_TS = Dataset_TS(:, 2:13);
-A_new = table2array(inputs_TS);
+A_new = (inputs_TS - mu_in) ./ std_in;
+A_new = [ones(size(A_new,1),1) A_new];
 
-% Normalization on test inputs
-A_new = (A_new - mu_TR) ./ sigma_TR;
-A_new = [ones(size(A_new,1), 1) A_new]; % adding bias column
+o_norm = A_new * X;
+o = o_norm .* std_out + mu_out;  % denormalized blind predictions
+%}
+%% ======================================
+% VISUALIZATION
+% ======================================= 
 
-%% Predictions on blind test data
-% o = A_new * X
-o = A * X;
-
-%% Scatter outputs from training and test for comparison
 figure;
 scatter3(B(:,1), B(:,2), B(:,3), 40, B(:,4), 'filled');
-colorbar;
-xlabel('Output 1'); ylabel('Output 2'); zlabel('Output 3');
-title('Shape of Training Targets');
+title('Shape of Training Targets (Normalized)');
+xlabel('Output 1'); ylabel('Output 2'); zlabel('Output 3'); colorbar;
 
 figure;
-scatter3(o(:,1), o(:,2), o(:,3), 40, o(:,4), 'filled');
-colorbar;
-xlabel('Output 1'); ylabel('Output 2'); zlabel('Output 3');
-%title('Blind Test');
-title('Predictions on Training Inputs (after Training)');
+scatter3(B_pred_norm(:,1), B_pred_norm(:,2), B_pred_norm(:,3), 40, B_pred_norm(:,4), 'filled');
+title('Predictions on Training Set (Normalized)');
+xlabel('Output 1'); ylabel('Output 2'); zlabel('Output 3'); colorbar;
 
-figure; hold on;
-o_true = B(:,2);
-o_pred = o(:,2);
-scatter(o_true, o_pred, 40, 'b', 'filled');
-% y = x red reference line
-x_range = linspace(min([o_true; o_pred]), max([o_true; o_pred]), 200);
-plot(x_range, x_range, 'r--', 'LineWidth', 2);
-xlabel('True Target'); ylabel('Predicted Target');
-title('True vs. Predicted (Output 2)');
-grid on;
-axis equal;
-
-figure; hold on;
-o_true = B(:,4);
-o_pred = o(:,4);
-scatter(o_true, o_pred, 40, 'b', 'filled');
-% y = x red reference line
-x_range = linspace(min([o_true; o_pred]), max([o_true; o_pred]), 200);
-plot(x_range, x_range, 'r--', 'LineWidth', 2);
-xlabel('True Target'); ylabel('Predicted Target');
-title('True vs. Predicted (Output 4)');
-grid on;
-axis equal;
-
-RMSE = sqrt(mean((B - o) .^ 2, 1));
+for k = 1:4
+    figure; hold on;
+    scatter(B(:,k), B_pred_norm(:,k), 40, 'blue', 'filled');
+    x = linspace(min(B(:,k)), max(B(:,k)), 200);
+    plot(x, x, 'r--', 'LineWidth', 2); 
+    xlabel('True Target'); ylabel('Predicted Target');
+    title(['Output ' num2str(k) ' - True vs Predicted (Normalized)']);
+    grid on; axis equal;
+end
