@@ -30,12 +30,7 @@ B = (outputs_TR - mu_out) ./ std_out;
 % WEIGHTS CALCULATION
 % ====================================
 
-lambda = 1;             % regularization factor
-
-I = eye(size(A,2)); 
-I(1,1) = 0;             % no regularization on bias term
-
-X = pinv(A) * B;        % SVD
+X = pinv(A) * B;
 
 %% ===================================
 % PREDICTIONS ON TRAINING DATA

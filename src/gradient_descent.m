@@ -1,16 +1,19 @@
-function W = gradient_descent(A, B, eta, lambda, epochs)
+function W = gradient_descent(inputs, outputs, eta, lambda, epochs)
 
-    N = size(A, 1);
+    N = size(inputs, 1);
     MSE_history = zeros(500,1);
 
-    W = (rand(size(A,2), size(B,2)) - 0.5) * 0.02;  % weights initialization
+    W = (rand(size(inputs,2), size(outputs,2)) - 0.5) * 0.02;  % weights initialization
+
+    disp("Random Initial Weights:");
+    disp(W);
     
     for epoch = 1:epochs
         MSE = 0;
     
         for p = 1:N
-            xp = A(p,:);
-            yp = B(p,:);
+            xp = inputs(p,:);
+            yp = outputs(p,:);
     
             hp = xp * W;                            % feeding pattern p
     

@@ -30,12 +30,12 @@ B = (outputs_TR - mu_out) ./ std_out;
 % WEIGHTS CALCULATION
 % ====================================
 
-lambda = 1;             % regularization factor
+lambda = 1e-8;          % regularization factor
 
 I = eye(size(A,2)); 
 I(1,1) = 0;             % no regularization on bias term
 
-X = (A' * A + lambda * I) \ (A' * B); % Normal Equations
+X = (A' * A + lambda * I) \ (A' * B); % Normal Equations with L2 regularization
 
 %% ===================================
 % PREDICTIONS ON TRAINING DATA
