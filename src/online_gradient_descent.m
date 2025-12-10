@@ -1,7 +1,7 @@
-function W = gradient_descent(inputs, outputs, eta, lambda, epochs)
+function W = online_gradient_descent(inputs, outputs, eta, lambda, epochs)
 
     N = size(inputs, 1);
-    MSE_history = zeros(500,1);
+    MSE_history = zeros(epochs,1);
 
     % Randomized Weights Initialization
     W = (rand(size(inputs,2), size(outputs,2)) - 0.5) * 0.02;
@@ -20,11 +20,11 @@ function W = gradient_descent(inputs, outputs, eta, lambda, epochs)
     
             % Mean Square Error
             err = yp - hp;
-            MSE = MSE + mean(err.^2);
+            MSE = MSE + mean(err(:).^2);
     
-            delta_w = -2 * xp' * err;               % gradient computation
+            delta_w = - 2 * xp' * err;              % gradient computation
     
-            W = W - eta * delta_w - lambda * W;     % weights update rule
+            W = W - eta * (delta_w + lambda * W);   % weights update rule
         end
     
         % Average MSE for the epoch
@@ -34,7 +34,7 @@ function W = gradient_descent(inputs, outputs, eta, lambda, epochs)
     figure;
     plot(MSE_history, 'LineWidth', 2);
     xlabel('Epoch'); ylabel('Mean Square Error');
-    title('Training MSE over Epochs');
+    title('Training MSE over Epochs (Online GD)');
     axis([0 epochs 0.5 1])
     grid on;
 

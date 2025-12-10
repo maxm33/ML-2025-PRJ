@@ -29,8 +29,10 @@ B = (outputs_TR - mu_out) ./ std_out;
 % ====================================
 
 % Hyper-Parameters
-eta = 1e-6;                                 % learning rate factor
+%eta = 1e-6;                                 % learning rate factor
 lambda = 1e-8;                              % regularization factor
-epochs = 500;
+epochs = 300;
 
-W = gradient_descent(A,B,eta,lambda,epochs);
+W_online = online_gradient_descent(A,B,1e-6,lambda,epochs);
+
+W_batch = batch_gradient_descent(A,B,1e-3,lambda,epochs);
