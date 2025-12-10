@@ -3,7 +3,8 @@ function W = gradient_descent(inputs, outputs, eta, lambda, epochs)
     N = size(inputs, 1);
     MSE_history = zeros(500,1);
 
-    W = (rand(size(inputs,2), size(outputs,2)) - 0.5) * 0.02;  % weights initialization
+    % Randomized Weights Initialization
+    W = (rand(size(inputs,2), size(outputs,2)) - 0.5) * 0.02;
 
     disp("Random Initial Weights:");
     disp(W);

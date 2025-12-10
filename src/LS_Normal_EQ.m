@@ -3,8 +3,8 @@
 % ====================================
 Dataset_TR = readtable('../data/TR/ML-CUP25-TR.csv');
 
-inputs_TR  = Dataset_TR{:, 2:13};   % 12 inputs
-outputs_TR = Dataset_TR{:, 14:end}; % 4 outputs
+inputs_TR  = Dataset_TR{:, 2:13};           % 12 inputs
+outputs_TR = Dataset_TR{:, 14:end};         % 4 outputs
 
 N = size(inputs_TR,1);
 
@@ -18,7 +18,7 @@ std_in = std(inputs_TR, 0, 1);
 
 A = (inputs_TR - mu_in) ./ std_in;
 
-A = [ones(N,1) A];      % added bias column
+A = [ones(N,1) A];                          % added bias column
 
 % Outputs
 mu_out  = mean(outputs_TR, 1);
@@ -30,12 +30,12 @@ B = (outputs_TR - mu_out) ./ std_out;
 % WEIGHTS CALCULATION
 % ====================================
 
-lambda = 1e-8;          % regularization factor
+lambda = 1e-8;                              % regularization factor
 
 I = eye(size(A,2)); 
-I(1,1) = 0;             % no regularization on bias term
+I(1,1) = 0;                                 % no regularization on bias term
 
-X = (A' * A + lambda * I) \ (A' * B); % Normal Equations with L2 regularization
+X = (A' * A + lambda * I) \ (A' * B);       % Normal Equations with L2 regularization
 
 %% ===================================
 % PREDICTIONS ON TRAINING DATA
@@ -68,7 +68,7 @@ A_new = (inputs_TS - mu_in) ./ std_in;
 A_new = [ones(size(A_new,1),1) A_new];
 
 o_norm = A_new * X;
-o = o_norm .* std_out + mu_out;  % denormalized blind predictions
+o = o_norm .* std_out + mu_out;             % denormalized blind predictions
 %}
 %% ======================================
 % VISUALIZATION

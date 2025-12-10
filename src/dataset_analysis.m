@@ -2,8 +2,8 @@
 Dataset_TR = readtable('../data/TR/ML-CUP25-TR.csv');
 
 %% Decomposing table
-inputs = Dataset_TR(:, 2:13);    % 12 inputs
-outputs = Dataset_TR(:, 14:end); % 4 outputs
+inputs = Dataset_TR(:, 2:13);           % 12 inputs
+outputs = Dataset_TR(:, 14:end);        % 4 outputs
 
 %% Relevant stats calculations
 overallInputRange = [min(min(inputs{:,:})), max(max(inputs{:,:}))];

@@ -3,8 +3,8 @@
 % ====================================
 Dataset_TR = readtable('../data/TR/ML-CUP25-TR.csv');
 
-inputs_TR  = Dataset_TR{:, 2:13};   % 12 inputs
-outputs_TR = Dataset_TR{:, 14:end}; % 4 outputs
+inputs_TR  = Dataset_TR{:, 2:13};           % 12 inputs
+outputs_TR = Dataset_TR{:, 14:end};         % 4 outputs
 
 %% ===================================
 % I/O NORMALIZATION (zero-mean / unit-variance)
@@ -16,7 +16,7 @@ std_in = std(inputs_TR, 0, 1);
 
 A = (inputs_TR - mu_in) ./ std_in;
 
-A = [ones(size(A,1),1) A];      % added bias column
+A = [ones(size(A,1),1) A];                  % added bias column
 
 % Outputs
 mu_out  = mean(outputs_TR, 1);
@@ -29,8 +29,8 @@ B = (outputs_TR - mu_out) ./ std_out;
 % ====================================
 
 % Hyper-Parameters
-eta = 1e-6;                                     % learning rate factor
-lambda = 1e-8;                                  % regularization factor
+eta = 1e-6;                                 % learning rate factor
+lambda = 1e-8;                              % regularization factor
 epochs = 500;
 
 W = gradient_descent(A,B,eta,lambda,epochs);
