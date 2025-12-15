@@ -1,5 +1,5 @@
-data = readmatrix("Progetto\data\TR\ML-CUP25-TR.csv");
-dataTS = readmatrix("Progetto\data\TS\ML-CUP25-TS.csv");
+data = readmatrix('../data/TR/ML-CUP25-TR.csv');
+dataTS = readmatrix('../data/TS/ML-CUP25-TS.csv');
 
 X = data(:, 2:end-4);
 Y = data(:, 14:17);
