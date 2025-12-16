@@ -26,8 +26,8 @@ n_outputs = size(Yn, 2);
 
 % utilizzo fattorizzazione QR
 [Q, R] = computeThinQR(X_bias);
-x = R \ (Q' * Yn)
-loss = norm(X_bias * x - Yn)^2/n_samples  %MSE
+x = R \ (Q' * Yn);
+loss = norm(X_bias * x - Yn)^2/n_samples;  %MSE
 min(Y), max(Y), length(Y)
 Y_pred = X_bias * x;
 

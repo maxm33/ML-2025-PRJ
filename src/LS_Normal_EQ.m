@@ -35,7 +35,7 @@ lambda = 1e-8;                              % regularization factor
 I = eye(size(A,2)); 
 I(1,1) = 0;                                 % no regularization on bias term
 
-X = (A' * A + lambda * I) \ (A' * B);       % Normal Equations with L2 regularization
+X = inv(A' * A + lambda * I) * (A' * B);    % Normal Equations with L2 regularization
 
 %% ===================================
 % PREDICTIONS ON TRAINING DATA
@@ -48,14 +48,14 @@ B_pred = B_pred_norm .* std_out + mu_out;   % denormalized outputs
 % ACCURACY MEASURAMENT
 % =====================================
 
-RMSE_norm = sqrt(mean((B - B_pred_norm).^2, 1));
-RMSE = sqrt(mean((outputs_TR - B_pred).^2, 1));
+MSE_norm = mean((B - B_pred_norm).^2, 1);
+MSE = mean((outputs_TR - B_pred).^2, 1);
 
-disp("RMSE per output (normalized):");
-disp(RMSE_norm);
+disp("MSE per output (normalized):");
+disp(MSE_norm);
 
-disp("RMSE per output (original scale):");
-disp(RMSE);
+disp("MSE per output (original scale):");
+disp(MSE);
 
 %% =====================================
 % PREDICTIONS ON BLIND TEST DATA (1000 patterns)
