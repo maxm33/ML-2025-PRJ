@@ -24,7 +24,7 @@ function W = online_gradient_descent(inputs, outputs, eta, lambda, epochs)
     
             delta_w = - 2 * xp' * err;              % gradient computation
     
-            W = W - eta * (delta_w + lambda * W);   % weights update rule
+            W = W - eta * delta_w - lambda * W;     % weights update rule
         end
     
         % Average MSE for the epoch

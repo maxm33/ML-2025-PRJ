@@ -27,7 +27,7 @@ function W = batch_gradient_descent(inputs, outputs, eta, lambda, epochs)
     
         end
 
-        W = W - eta * (delta_w + lambda * W);       % weights update rule
+        W = W - eta * delta_w - lambda * W;         % weights update rule
     
         % Average MSE for the epoch
         MSE_history(epoch) = MSE / N;
