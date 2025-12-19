@@ -11,8 +11,10 @@ M = size(outputs_TR, 2);                    % 4 outputs
 P = size(inputs_TR, 1);                     % 500 patterns
 
 % Hyper Parameters
-numHidden = 50;
-eta = 1e-3;
+numHidden = 50;                             % # of units inside first Hidden Layer
+
+eta = 1e-2;                                 % Learning Rate
+
 epochs = 1000;
 
 %% ===================================

@@ -11,10 +11,15 @@ M = size(outputs_TR, 2);                    % 4 outputs
 P = size(inputs_TR, 1);                     % 500 patterns
 
 % Hyper Parameters
-numHidden1 = 40;
-numHidden2 = 40;
-eta = 0.5;
-lambda = 3e-4;
+numHidden1 = 40;                            % # of units inside first Hidden Layer
+numHidden2 = 40;                            % # of units inside second Hidden Layer
+
+eta = 0.5;                                  % initial Learning Rate
+eta_tau = 0.01;                             % eta to use from epoch tau
+tau = 300;                                  % epoch where eta will be fully decayed
+
+lambda = 2e-3;                              % factor for L1 Regularization
+
 epochs = 1000;
 
 %% ===================================
@@ -62,16 +67,9 @@ for epoch = 1:epochs
     Yhat = zeros(P, M);
 
     % Gradient Accumulators
-    grad_W_h1 = cell(1,numHidden1); grad_b_h1 = zeros(1,numHidden1);
-    grad_W_h2 = cell(1,numHidden2); grad_b_h2 = zeros(1,numHidden2);
+    grad_W_h1 = zeros(numHidden1, N); grad_b_h1 = zeros(1,numHidden1);
+    grad_W_h2 = zeros(numHidden2, numHidden1); grad_b_h2 = zeros(1,numHidden2);
     grad_W_out = zeros(M,numHidden2); grad_b_out = zeros(1,M);
-
-    for j = 1:numHidden1
-        grad_W_h1{j} = zeros(1,N);
-    end
-    for j = 1:numHidden2
-        grad_W_h2{j} = zeros(1,numHidden1);
-    end
 
     % Loop over all patterns
     for p = 1:P
@@ -137,7 +135,7 @@ for epoch = 1:epochs
         for j = 1:numHidden2
             grad_b_h2(j) = grad_b_h2(j) + hidden2_signals(j);
             for i = 1:numHidden1
-                grad_W_h2{j}(i) = grad_W_h2{j}(i) + hidden2_signals(j) * hidden_layer1(i).output;
+                grad_W_h2(j,i) = grad_W_h2(j,i) + hidden2_signals(j) * hidden_layer1(i).output;
             end
         end
 
@@ -145,7 +143,7 @@ for epoch = 1:epochs
         for j = 1:numHidden1
             grad_b_h1(j) = grad_b_h1(j) + hidden1_signals(j);
             for i = 1:N
-                grad_W_h1{j}(i) = grad_W_h1{j}(i) + hidden1_signals(j) * input_layer(i).output;
+                grad_W_h1(j,i) = grad_W_h1(j,i) + hidden1_signals(j) * input_layer(i).output;
             end
         end
     end
@@ -156,7 +154,7 @@ for epoch = 1:epochs
         hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + eta * grad_b_h1(j) / P;
         for i = 1:N
             hidden_layer1(j).input_connections(i).weight = ...
-                hidden_layer1(j).input_connections(i).weight + eta * grad_W_h1{j}(i) / P - ...
+                hidden_layer1(j).input_connections(i).weight + eta * grad_W_h1(j,i) / P - ...
                     lambda * sign(hidden_layer1(j).input_connections(i).weight);
         end
     end
@@ -166,7 +164,7 @@ for epoch = 1:epochs
         hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + eta * grad_b_h2(j) / P;
         for i = 1:numHidden1
             hidden_layer2(j).input_connections(i).weight = ...
-                hidden_layer2(j).input_connections(i).weight + eta * grad_W_h2{j}(i) / P - ...
+                hidden_layer2(j).input_connections(i).weight + eta * grad_W_h2(j,i) / P - ...
                     lambda * sign(hidden_layer2(j).input_connections(i).weight);
         end
     end
@@ -194,6 +192,14 @@ for epoch = 1:epochs
     % Live Plot
     set(hLine,'XData',1:epoch,'YData',rmse_history(1:epoch));
     drawnow;
+
+    % Variable (linear decaying) learning rate
+    if epoch <= tau
+        gamma = epoch / tau;
+        eta = (1 - gamma) * eta + gamma * eta_tau;
+    else
+        eta = eta_tau;
+    end
 end
 %%
 function hidden_conns = generate_hidden_conns_from(input_units)
