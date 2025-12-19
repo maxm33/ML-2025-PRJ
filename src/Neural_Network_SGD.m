@@ -45,23 +45,21 @@ end
 % ====================================
 
 % Plot Initialization
-mse_history = zeros(1, epochs);
+rmse_history = zeros(1, epochs);
 figure_handle = figure;
 hLine = plot(NaN, NaN, 'b-', 'LineWidth', 2);
-xlabel('Epoch'); ylabel('MSE'); title('Learning Curve'); grid on; hold on;
+xlabel('Epoch'); ylabel('RMSE'); title('Learning Curve'); grid on; hold on;
 
 for epoch = 1:epochs
     total_error = 0;
     Yhat = zeros(P, M);
-    
+
+    % Loop over all patterns 
     for p = 1:P
-        
-        % Load pattern p
+        %% Feedforward phase
         for i = 1:N
-            input_layer(i).output = A(p,i);  % units forward each input
+            input_layer(i).output = A(p,i); % load pattern p
         end
-        
-        % Feedforward phase
         for i = 1:numHidden
             hidden_layer(i).compute();
         end
@@ -72,15 +70,15 @@ for epoch = 1:epochs
             Yhat(p, :) = outputs;
         end
 
-        total_error = total_error + 1/2 * sum((B(p,:) - outputs).^2);
+        total_error = total_error + sqrt(sum((B(p,:) - outputs).^2));
 
-        % Output signals
+        %% Output signals
         output_signals = zeros(1, M);
         for k = 1:M
-            output_signals(k) = (B(p,k) - outputs(k)); %* output_layer(k).sigmoid_derivative(outputs(k));
+            output_signals(k) = (B(p,k) - outputs(k));
         end
     
-        % Hidden signals
+        %% Hidden signals
         hidden_signals = zeros(1, numHidden);
         for j = 1:numHidden
             summation = 0;
@@ -95,7 +93,7 @@ for epoch = 1:epochs
                 summation * hidden_layer(j).Leaky_ReLU_derivative(hidden_layer(j).net);
         end
     
-        % Update kj weights
+        %% Update kj weights
         for k = 1:M
             output_layer(k).bias_weight = ...
                 output_layer(k).bias_weight + eta * output_signals(k);
@@ -107,7 +105,7 @@ for epoch = 1:epochs
             end
         end
     
-        % Update ji weights
+        %% Update ji weights
         for j = 1:numHidden
             hidden_layer(j).bias_weight = ...
                 hidden_layer(j).bias_weight + eta * hidden_signals(j);
@@ -121,24 +119,28 @@ for epoch = 1:epochs
         end
     end
 
-    % Compute total error over an epoch (1/2 factor included)
-    mse = total_error / (P * M) * 2;
-    
-    fprintf('Epoch %d | MSE = %.6f\n', epoch, mse);
+    % Compute Mean Euclidian Error over an epoch
+    mee = total_error / (P * M);
+    fprintf('Epoch %d | MEE = %.6f\n', epoch, mee);
 
-    % Collected network outputs over an epoch
+    % RMSE with collected network outputs over an epoch
     err = B - Yhat;
-    mse_per_output = mean(err.^2, 1);
-    disp(mse_per_output);
+    rmse_per_output = sqrt(mean(err.^2, 1));
+    disp(rmse_per_output);
 
     % Live Plot
-    mse_history(epoch) = mean(mse_per_output);
-    set(hLine, 'XData', 1:epoch, 'YData', mse_history(1:epoch));
+    rmse_history(epoch) = mean(rmse_per_output);
+    set(hLine,'XData',1:epoch,'YData',rmse_history(1:epoch));
     drawnow;
+
+    % Shuffling the patterns
+    perm = randperm(size(A,1));         % random rows order
+    A = A(perm, :);
+    B = B(perm, :);
 end
 %%
 function hidden_conns = generate_hidden_conns_from(input_units)
-    hidden_conns(1, numel(input_units)) = struct('neuron', [], 'weight', []);
+    hidden_conns(1, numel(input_units)) = struct('neuron',[],'weight',[]);
 
     for i = 1:numel(input_units)
         hidden_conns(i).neuron = input_units(i);
@@ -147,7 +149,7 @@ function hidden_conns = generate_hidden_conns_from(input_units)
 end
 
 function output_conns = generate_output_conns_from(hidden_units)
-    output_conns(1, numel(hidden_units)) = struct('neuron', [], 'weight', []);
+    output_conns(1, numel(hidden_units)) = struct('neuron',[],'weight',[]);
 
     for i = 1:numel(hidden_units)
         output_conns(i).neuron = hidden_units(i);

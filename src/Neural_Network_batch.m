@@ -11,9 +11,10 @@ M = size(outputs_TR, 2);                    % 4 outputs
 P = size(inputs_TR, 1);                     % 500 patterns
 
 % Hyper Parameters
-numHidden1 = 50;
-numHidden2 = 50;
-eta = 0.4;
+numHidden1 = 40;
+numHidden2 = 40;
+eta = 0.5;
+lambda = 3e-4;
 epochs = 1000;
 
 %% ===================================
@@ -51,10 +52,10 @@ end
 % ====================================
 
 % Plot Initialization
-mse_history = zeros(1, epochs);
+rmse_history = zeros(1, epochs);
 figure_handle = figure;
 hLine = plot(NaN, NaN, 'b-', 'LineWidth', 2);
-xlabel('Epoch'); ylabel('MSE'); title('Learning Curve'); grid on; hold on;
+xlabel('Epoch'); ylabel('RMSE'); title('Learning Curve'); grid on; hold on;
 
 for epoch = 1:epochs
     total_error = 0;
@@ -91,14 +92,14 @@ for epoch = 1:epochs
             Yhat(p,:) = outputs;
         end
 
-        total_error = total_error + 1/2 * sum((B(p,:) - outputs).^2);
+        total_error = total_error + sqrt(sum((B(p,:) - outputs).^2));
 
         %% BackPropagation phase
 
         % Output signals
         output_signals = zeros(1,M);
         for k = 1:M
-            output_signals(k) = (B(p,k) - outputs(k)); %* output_layer(k).sigmoid_derivative(outputs(k));
+            output_signals(k) = (B(p,k) - outputs(k));
         end
 
         % Hidden layer 2 signals
@@ -154,7 +155,8 @@ for epoch = 1:epochs
         hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + eta * grad_b_h1(j) / P;
         for i = 1:N
             hidden_layer1(j).input_connections(i).weight = ...
-                hidden_layer1(j).input_connections(i).weight + eta * grad_W_h1{j}(i) / P;
+                hidden_layer1(j).input_connections(i).weight + eta * grad_W_h1{j}(i) / P - ...
+                    lambda * sign(hidden_layer1(j).input_connections(i).weight);
         end
     end
 
@@ -163,7 +165,8 @@ for epoch = 1:epochs
         hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + eta * grad_b_h2(j) / P;
         for i = 1:numHidden1
             hidden_layer2(j).input_connections(i).weight = ...
-                hidden_layer2(j).input_connections(i).weight + eta * grad_W_h2{j}(i) / P;
+                hidden_layer2(j).input_connections(i).weight + eta * grad_W_h2{j}(i) / P - ...
+                    lambda * sign(hidden_layer2(j).input_connections(i).weight);
         end
     end
 
@@ -172,22 +175,23 @@ for epoch = 1:epochs
         output_layer(k).bias_weight = output_layer(k).bias_weight + eta * grad_b_out(k) / P;
         for j = 1:numHidden2
             output_layer(k).input_connections(j).weight = ...
-                output_layer(k).input_connections(j).weight + eta * grad_W_out(k,j) / P;
+                output_layer(k).input_connections(j).weight + eta * grad_W_out(k,j) / P - ...
+                    lambda * sign(output_layer(k).input_connections(j).weight);
         end
     end
 
-    % Compute total error over an epoch (1/2 factor included)
-    mse = total_error / (P * M) * 2;
-    fprintf('Epoch %d | MSE = %.6f\n', epoch, mse);
+    % Compute Mean Euclidian Error over an epoch
+    mee = total_error / (P * M);
+    fprintf('Epoch %d | MEE = %.6f\n', epoch, mee);
 
-    % Collected network outputs over an epoch
+    % RMSE with collected network outputs over an epoch
     err = B - Yhat;
-    mse_per_output = mean(err.^2,1);
-    disp(mse_per_output);
+    rmse_per_output = sqrt(mean(err.^2, 1));
+    disp(rmse_per_output);
 
     % Live Plot
-    mse_history(epoch) = mean(mse_per_output);
-    set(hLine,'XData',1:epoch,'YData',mse_history(1:epoch));
+    rmse_history(epoch) = mean(rmse_per_output);
+    set(hLine,'XData',1:epoch,'YData',rmse_history(1:epoch));
     drawnow;
 end
 %%

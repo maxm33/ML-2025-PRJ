@@ -13,16 +13,6 @@ classdef neuron_output_unit < handle
             obj.input_connections = input_connections;
         end
 
-        % Logistic activation function
-        %function y = sigmoid(~, x)
-        %    y = 1 / (1 + exp(-x));
-        %end
-
-        % Function derivative
-        %function dy = sigmoid_derivative(~, x)
-        %    dy = x * (1 - x);
-        %end
-
         % Output computation
         function compute(this)
             this.net = this.bias_weight;
@@ -34,7 +24,7 @@ classdef neuron_output_unit < handle
                 this.net = this.net + weight_ji * unit_i.output;
             end
 
-            this.output = this.net; %this.sigmoid(this.net);
+            this.output = this.net;     % Linear outputs
         end
     end
 end
