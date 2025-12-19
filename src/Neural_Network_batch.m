@@ -92,7 +92,8 @@ for epoch = 1:epochs
             Yhat(p,:) = outputs;
         end
 
-        total_error = total_error + sqrt(sum((B(p,:) - outputs).^2));
+        denorm_diff = (B(p,:) - outputs) .* std(outputs_TR,0,1);
+        total_error = total_error + sqrt(sum(denorm_diff.^2));
 
         %% BackPropagation phase
 
@@ -180,17 +181,17 @@ for epoch = 1:epochs
         end
     end
 
-    % Compute Mean Euclidian Error over an epoch
-    mee = total_error / (P * M);
-    fprintf('Epoch %d | MEE = %.6f\n', epoch, mee);
-
     % RMSE with collected network outputs over an epoch
     err = B - Yhat;
     rmse_per_output = sqrt(mean(err.^2, 1));
+
+    % Compute Mean Euclidian Error over an epoch
+    mee = total_error / P;
+    rmse_history(epoch) = mean(rmse_per_output);
+    fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f\n', epoch, rmse_history(epoch), mee);
     disp(rmse_per_output);
 
     % Live Plot
-    rmse_history(epoch) = mean(rmse_per_output);
     set(hLine,'XData',1:epoch,'YData',rmse_history(1:epoch));
     drawnow;
 end
