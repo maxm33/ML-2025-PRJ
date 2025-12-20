@@ -11,9 +11,11 @@ M = size(outputs_TR, 2);                    % 4 outputs
 P = size(inputs_TR, 1);                     % 500 patterns
 
 % Hyper Parameters
-numHidden = 50;                             % # of units inside first Hidden Layer
+numHidden = 50;                             % # of units inside Hidden Layer
 
 eta = 1e-2;                                 % Learning Rate
+
+lambda = 1e-2;                              % factor for L1 Regularization
 
 epochs = 1000;
 
@@ -46,13 +48,17 @@ end
 % BACKPROPAGATION TRAINING LOOP
 % ====================================
 
-% Plot Initialization
+epoch_times = zeros(1, epochs);
 rmse_history = zeros(1, epochs);
-figure_handle = figure;
+
+% Plot Initialization
+figure;
 hLine = plot(NaN, NaN, 'b-', 'LineWidth', 2);
 xlabel('Epoch'); ylabel('RMSE'); title('Learning Curve'); grid on; hold on;
 
 for epoch = 1:epochs
+    epoch_time_start = posixtime(datetime('now'));
+
     total_error = 0;
     Yhat = zeros(P, M);
 
@@ -96,7 +102,7 @@ for epoch = 1:epochs
                 summation * hidden_layer(j).Leaky_ReLU_derivative(hidden_layer(j).net);
         end
     
-        %% Update kj weights
+        %% Update kj weights (Hidden -> Output)
         for k = 1:M
             output_layer(k).bias_weight = ...
                 output_layer(k).bias_weight + eta * output_signals(k);
@@ -104,11 +110,12 @@ for epoch = 1:epochs
             for j = 1:numHidden
                 output_layer(k).input_connections(j).weight = ...
                     output_layer(k).input_connections(j).weight + ...
-                    eta * output_signals(k) * hidden_layer(j).output;
+                    eta * output_signals(k) * hidden_layer(j).output - ...
+                    lambda * sign(output_layer(k).input_connections(j).weight);
             end
         end
     
-        %% Update ji weights
+        %% Update ji weights (Input -> Hidden)
         for j = 1:numHidden
             hidden_layer(j).bias_weight = ...
                 hidden_layer(j).bias_weight + eta * hidden_signals(j);
@@ -117,7 +124,8 @@ for epoch = 1:epochs
                 hidden_layer(j).input_connections(i).weight = ...
                     hidden_layer(j).input_connections(i).weight + ...
                     eta * hidden_signals(j) * ...
-                    hidden_layer(j).input_connections(i).neuron.output;
+                    hidden_layer(j).input_connections(i).neuron.output - ...
+                    lambda * sign(hidden_layer(j).input_connections(i).weight);
             end
         end
     end
@@ -140,7 +148,11 @@ for epoch = 1:epochs
     perm = randperm(size(A,1));         % random rows order
     A = A(perm, :);
     B = B(perm, :);
+
+    epoch_times(epoch) = posixtime(datetime('now')) - epoch_time_start;
 end
+
+fprintf('Total Training Time (seconds) = %.3f | Average Epoch Time (seconds) = %.3f\n', sum(epoch_times), mean(epoch_times));
 %%
 function hidden_conns = generate_hidden_conns_from(input_units)
     hidden_conns(1, numel(input_units)) = struct('neuron',[],'weight',[]);
