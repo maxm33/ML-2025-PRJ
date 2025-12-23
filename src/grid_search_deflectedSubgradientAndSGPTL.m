@@ -1,11 +1,11 @@
 % Grid Values
-numHidden1_vals = [10 20 30 40 50 60 70 80 90 100];
-numHidden2_vals = [10 20 30 40 50 60 70 80 90 100];
-lambda_vals     = [1e-1 1e-2 1e-3 1e-4 1e-5 1e-6 1e-7 1e-8 1e-9];
-beta_vals       = [2 1.5 1 5e-1 1e-1];
-delta_multiplicator_vals = [5e-1 2e-1 1e-1 5e-1 2e-2 1e-2];
-R_vals          = [1 2 3 4 5];
-rho_vals        = [5e-1 7e-1 8e-1];
+numHidden1_vals = [30 40 50 60 70 80];
+numHidden2_vals = [30 40 50 60 70 80];
+lambda_vals     = [1e-5 1e-6 1e-7 1e-8 1e-9];
+beta_vals       = [1.5 1 5e-1 1e-1];
+delta_multiplicator_vals = [5e-1 1e-1 5e-1 1e-2];
+R_vals          = [1 2 3];
+rho_vals        = [5e-1 7e-1];
 
 % Combinations
 combo = [];
