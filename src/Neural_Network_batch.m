@@ -60,6 +60,10 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     mee_history = zeros(1, epochs);
     rmse_history = zeros(1, epochs);
     epoch_times = zeros(1, epochs);
+
+    % Early Stopping
+    patience = 200;              
+    tolerance = 1e-2;                     
     
     % Plot Initialization
     %figure;
@@ -206,6 +210,17 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
         %else
         %    eta = eta_tau;
         %end
+
+        if epoch > patience
+            improvement = rmse_history(epoch - patience) - rmse_history(epoch);
+            
+            if improvement < tolerance && rmse_history(epoch) > 0.5
+                fprintf('EARLY STOPPING: improvement < %.4f over last %d epochs\n', ...
+                        tolerance, patience);
+                score = 200;
+                return;
+            end
+        end
         
         epoch_times(epoch) = posixtime(datetime('now')) - epoch_time_start;
     end
