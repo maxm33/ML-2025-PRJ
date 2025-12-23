@@ -1,8 +1,8 @@
 % Grid Values
-numHidden1_vals = [10 20 30 40 50 60 70 80 90 100];
-numHidden2_vals = [10 20 30 40 50 60 70 80 90 100];
-eta_vals        = [5e-1 4e-1 3e-1 2e-1 1e-1 5e-2 4e-2 3e-2 2e-2 1e-2 5e-3 4e-3 3e-3 2e-3 1e-3];
-lambda_vals     = [1e-1 1e-2 1e-3 1e-4 1e-5 1e-6 1e-7 1e-8 1e-9];
+numHidden1_vals = [60 50 40];
+numHidden2_vals = [40 50 60];
+eta_vals        = [1e-1 9e-2 8e-2 7e-2 3e-1 2e-1];
+lambda_vals     = [1e-4 1e-5 1e-6];
 
 % Combinations
 combo = [];
