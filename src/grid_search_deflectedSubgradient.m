@@ -11,7 +11,7 @@ for a = numHidden1_vals
     for b = numHidden2_vals
         for c = lambda_vals
             for d = beta_vals
-                for e = delta_multiplicators_vals
+                for e = delta_multiplicator_vals
                     combo = [combo; a b c d e];
                 end
             end

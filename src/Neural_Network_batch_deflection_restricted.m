@@ -201,7 +201,7 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
         end
 
         epsilon = 1e-8;
-        alpha = beta_eff * (loss - f_best) / (norm(d_vec)^2 + epsilon);
+        alpha = beta * (loss - f_best) / (norm(d_vec)^2 + epsilon);
 
         alpha = max(alpha, 0);   %per evitare alpha negativi
         alpha_prev = alpha;
