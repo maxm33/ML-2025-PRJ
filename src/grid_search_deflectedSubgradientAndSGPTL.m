@@ -13,10 +13,10 @@ for a = numHidden1_vals
     for b = numHidden2_vals
         for c = lambda_vals
             for d = beta_vals
-                for e = delta_multiplicators_vals
+                for e = delta_multiplicator_vals
                     for f = R_vals
                         for g = rho_vals
-                        combo = [combo; a b c d e g];
+                            combo = [combo; a b c d e g];
                         end
                     end
                 end
@@ -39,9 +39,9 @@ parfor i = 1:numCombo
     h2 = combo(i,2);
     lambda = combo(i,3);
     beta = combo(i,4);
-    delta = combo(1,5);
-    R = combo(1,6);
-    rho = combo(1,7);
+    delta = combo(i,5);
+    R = combo(i,6);
+    rho = combo(i,7);
 
     results1(i) = Neural_Network_batch_stepsizeRestrictedSGPTL(h1, h2, lambda, beta, delta, R, rho);
     results2(i) = Neural_Network_batch_deflectionRestrictedSGPTL(h1, h2, lambda, beta, delta, R, rho);

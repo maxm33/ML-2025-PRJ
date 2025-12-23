@@ -1,7 +1,7 @@
 classdef neuron_output_unit < handle
 
     properties
-        bias_weight = randn * 0.1
+        bias_weight = 0
         input_connections               % struct: (unit, weight)
         net
         output

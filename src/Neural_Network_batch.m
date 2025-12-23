@@ -16,12 +16,12 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     % numHidden2                                % # of units inside second Hidden Layer
     
     % eta                                       % initial Learning Rate
-    %eta_tau = 0.001;                           % eta to use from epoch tau
+    %eta_tau = eta / 100;                       % eta to use from epoch tau
     %tau = 200;                                 % epoch where eta will be fully decayed
     
     % lambda                                    % factor for L1 Regularization
     
-    epochs = 1000;
+    maxEpochs = 10000;
     
     %% ===================================
     % I/O NORMALIZATION (zero-mean / unit-variance)
@@ -40,37 +40,45 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     
     % Hidden Layer 1
     for i = 1:numHidden1
-        hidden_layer1(i) = neuron_hidden_unit(generate_hidden_conns_from(input_layer));
+        hidden_layer1(i) = neuron_hidden_unit(generate_hidden_conns_from(input_layer, M));
     end
     
     % Hidden Layer 2
     for i = 1:numHidden2
-        hidden_layer2(i) = neuron_hidden_unit(generate_hidden_conns_from(hidden_layer1));
+        hidden_layer2(i) = neuron_hidden_unit(generate_hidden_conns_from(hidden_layer1, M));
     end
     
     % Output Layer
     for i = 1:M
-        output_layer(i) = neuron_output_unit(generate_output_conns_from(hidden_layer2));
+        output_layer(i) = neuron_output_unit(generate_output_conns_from(hidden_layer2, M));
     end
+
+    % Saving initial weights configuration
+    input_layer_initial = input_layer;
+    hidden_layer1_initial = hidden_layer1;
+    hidden_layer2_initial = hidden_layer2;
+    output_layer_initial = output_layer;
     
     %% ===================================
     % BACKPROPAGATION TRAINING LOOP
     % ====================================
 
-    mee_history = zeros(1, epochs);
-    rmse_history = zeros(1, epochs);
-    epoch_times = zeros(1, epochs);
+    mee_history = zeros(1, maxEpochs);
+    rmse_history = zeros(1, maxEpochs);
+    epoch_times = zeros(1, maxEpochs);
 
     % Early Stopping
     patience = 200;              
-    tolerance = 1e-2;                     
+    tolerance = 0.05;                           % minimum of 5% in patience epochs            
     
     % Plot Initialization
     %figure;
     %hLine = plot(NaN, NaN, 'b-', 'LineWidth', 2);
     %xlabel('Epoch'); ylabel('RMSE'); title('Learning Curve'); grid on; hold on;
     
-    for epoch = 1:epochs
+    epoch = 0;
+    while epoch < maxEpochs
+        epoch = epoch + 1;
         epoch_time_start = posixtime(datetime('now'));
     
         total_error = 0;
@@ -212,13 +220,15 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
         %end
 
         if epoch > patience
-            improvement = rmse_history(epoch - patience) - rmse_history(epoch);
-            
-            if improvement < tolerance && rmse_history(epoch) > 0.5
-                fprintf('EARLY STOPPING: improvement < %.4f over last %d epochs\n', ...
-                        tolerance, patience);
-                score = 200;
-                return;
+            past_rmse = rmse_history(epoch - patience);
+            current_rmse = rmse_history(epoch);
+        
+            % Relative improvement over last patience epochs
+            improvement = (past_rmse - current_rmse) / max(past_rmse, 1e-8);
+        
+            if improvement < tolerance
+                fprintf("EARLY STOP at epoch %d\n", epoch);
+                break;
             end
         end
         
@@ -228,25 +238,33 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     fprintf('Total Training Time (seconds) = %.3f | Average Epoch Time (seconds) = %.3f\n', sum(epoch_times), mean(epoch_times));
 
     % Saving model's data
-    model.rmse_final = rmse_history(end);
-    model.rmse_min = min(rmse_history);
-    model.mee_final = mee_history(end);
     model.mee_min = min(mee_history);
+    model.mee_final = mee_history(end);
+    model.rmse_min = min(rmse_history);
+    model.rmse_final = rmse_history(end);
 
+    model.eta = eta;
+    model.lambda = lambda;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
-    model.lambda = lambda;
-    model.eta = eta;
 
-    model.input_layer = input_layer;
-    model.hidden_layer1 = hidden_layer1;
-    model.hidden_layer2 = hidden_layer2;
-    model.output_layer = output_layer;
-    
     model.mu_input = mean(inputs_TR,1);
     model.sigma_input = std(inputs_TR,0,1);
     model.mu_output = mean(outputs_TR,1);
     model.sigma_output = std(outputs_TR,0,1);
+
+    model.input_layer_initial = input_layer_initial;
+    model.hidden_layer1_initial = hidden_layer1_initial;
+    model.hidden_layer2_initial = hidden_layer2_initial;
+    model.output_layer_initial = output_layer_initial;
+
+    model.input_layer_final = input_layer;
+    model.hidden_layer1_final = hidden_layer1;
+    model.hidden_layer2_final = hidden_layer2;
+    model.output_layer_final = output_layer;
+
+    model.training_time = sum(epoch_times);
+    model.epoch_time = mean(epoch_times);
 
     if ~exist('models', 'dir')
         mkdir('models');
@@ -262,7 +280,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     plot_file = fullfile('models', [name '_plot.png']);
     
     fig = figure('Visible','off');
-    plot(1:epochs, rmse_history, 'LineWidth', 2);
+    plot(1:maxEpochs, rmse_history, 'LineWidth', 2);
     xlabel('Epoch'); ylabel('RMSE');
     title(sprintf('Learning Curve | h1 = %d; h2 = %d; eta = %g; lambda = %g; Batch', ...
         numHidden1, numHidden2, eta, lambda));
@@ -273,21 +291,29 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
 
     score = mee_history(end);
     %%
-    function hidden_conns = generate_hidden_conns_from(input_units)
+    function hidden_conns = generate_hidden_conns_from(input_units, fan_out)
         hidden_conns(1, numel(input_units)) = struct('neuron',[],'weight',[]);
-    
-        for n = 1:numel(input_units)
+
+        % Normal Xavier Initialization
+        fan_in = numel(input_units);
+        xavier = sqrt(2 / (fan_in + fan_out));
+
+        for n = 1:fan_in
             hidden_conns(n).neuron = input_units(n);
-            hidden_conns(n).weight = randn * 0.1;
+            hidden_conns(n).weight = randn * xavier;
         end
     end
     
-    function output_conns = generate_output_conns_from(hidden_units)
+    function output_conns = generate_output_conns_from(hidden_units, fan_out)
         output_conns(1, numel(hidden_units)) = struct('neuron',[],'weight',[]);
+
+        % Normal Xavier Initialization
+        fan_in = numel(hidden_units);
+        xavier = sqrt(2 / (fan_in + fan_out));
     
-        for n = 1:numel(hidden_units)
+        for n = 1:fan_in
             output_conns(n).neuron = hidden_units(n);
-            output_conns(n).weight = randn * 0.1;
+            output_conns(n).weight = randn * xavier;
         end
     end
 end
