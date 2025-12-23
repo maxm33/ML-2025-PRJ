@@ -37,7 +37,7 @@ function W = batch_gradient_descent(inputs, outputs, eta, lambda, epochs)
     plot(MSE_history, 'LineWidth', 2);
     xlabel('Epoch'); ylabel('Mean Square Error');
     title('Training MSE over Epochs (Batch GD)');
-    axis([0 epochs 0.5 1])
+    axis([0 epochs 0 1])
     grid on;
 
 end

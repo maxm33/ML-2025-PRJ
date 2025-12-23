@@ -21,4 +21,4 @@ for k = 1:numel(files)
 end
 
 fprintf("\nTOTAL: %d / %d (%.2f%%)\n", ...
-    totalCount, totalElems, 100*totalCount/totalElems);
+    totalCount, totalElems, 100 * totalCount / totalElems);
