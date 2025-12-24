@@ -13,11 +13,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     % Hyper Parameters
     % numHidden1                                % # of units inside first Hidden Layer
     % numHidden2                                % # of units inside second Hidden Layer
-    
     % eta                                       % initial Learning Rate
-    %eta_tau = eta / 100;                       % eta to use from epoch tau
-    %tau = 200;                                 % epoch where eta will be fully decayed
-    
     % lambda                                    % factor for L1 Regularization
 
     % Early Stopping
@@ -26,40 +22,20 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     maxEpochs = 10000;
     
     %% ===================================
-    % NEURAL NETWORK CONFIGURATION (fully connected)
-    % ====================================
-    
-    % Input Layer
-    for i = 1:N
-        input_layer(i) = neuron_input_unit(0);
-    end
-    
-    % Hidden Layer 1
-    for i = 1:numHidden1
-        hidden_layer1(i) = neuron_hidden_unit(generate_hidden_conns_from(input_layer));
-    end
-    
-    % Hidden Layer 2
-    for i = 1:numHidden2
-        hidden_layer2(i) = neuron_hidden_unit(generate_hidden_conns_from(hidden_layer1));
-    end
-    
-    % Output Layer
-    for i = 1:M
-        output_layer(i) = neuron_output_unit(generate_output_conns_from(hidden_layer2));
-    end
-
-    % Saving initial weights configuration
-    input_layer_initial = input_layer;
-    hidden_layer1_initial = hidden_layer1;
-    hidden_layer2_initial = hidden_layer2;
-    output_layer_initial = output_layer;
-    
-    %% ===================================
     % K-FOLD CROSS-VALIDATION
     % ====================================
     k = 5;
     cv = cvpartition(size(inputs_TR,1), 'KFold', k);
+
+    input_layer_initial  = cell(1,k);
+    hidden_layer1_initial = cell(1,k);
+    hidden_layer2_initial = cell(1,k);
+    output_layer_initial  = cell(1,k);
+
+    rmse_train = nan(maxEpochs, k);
+    rmse_val   = nan(maxEpochs, k);
+    mee_val    = nan(maxEpochs, k);
+    last_val_rmse = nan(1,k);
 
     training_start_time = posixtime(datetime('now'));
 
@@ -76,6 +52,42 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
         P_train = size(A_train,1);
         P_val = size(A_validation,1);
 
+        best_val_mee = inf;
+        epochs_since_improvement = 0;
+    
+        mee_history = nan(1, maxEpochs);
+        rmse_history = nan(1, maxEpochs);
+
+        %% ===================================
+        % NEURAL NETWORK CONFIGURATION (fully connected)
+        % ====================================
+        
+        % Input Layer
+        for i = 1:N
+            input_layer(i) = neuron_input_unit(0);
+        end
+        
+        % Hidden Layer 1
+        for i = 1:numHidden1
+            hidden_layer1(i) = neuron_hidden_unit(generate_hidden_conns_from(input_layer));
+        end
+        
+        % Hidden Layer 2
+        for i = 1:numHidden2
+            hidden_layer2(i) = neuron_hidden_unit(generate_hidden_conns_from(hidden_layer1));
+        end
+        
+        % Output Layer
+        for i = 1:M
+            output_layer(i) = neuron_output_unit(generate_output_conns_from(hidden_layer2));
+        end
+    
+        % Saving initial weights configuration
+        input_layer_initial{fold}  = input_layer;
+        hidden_layer1_initial{fold} = hidden_layer1;
+        hidden_layer2_initial{fold} = hidden_layer2;
+        output_layer_initial{fold}  = output_layer;
+
         %% ===================================
         % I/O NORMALIZATION (zero-mean / unit-variance)
         % ====================================
@@ -84,12 +96,14 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
 
         mu_A  = mean(A_train_raw,1);
         std_A = std(A_train_raw,0,1);
+        std_A = max(std_A, 1e-8);
 
         A_train = (A_train_raw - mu_A) ./ std_A;
         A_validation   = (A_val_raw   - mu_A) ./ std_A;
 
         mu_B  = mean(B_train,1);
         std_B = std(B_train,0,1);
+        std_B = max(std_B, 1e-8);
 
         B_train_norm = (B_train - mu_B) ./ std_B;
         B_val_norm   = (B_validation - mu_B) ./ std_B;
@@ -97,9 +111,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
         %% ===================================
         % BACKPROPAGATION TRAINING LOOP
         % ====================================
-    
-        mee_history = zeros(1, maxEpochs);
-        rmse_history = zeros(1, maxEpochs);
 
         epoch = 0;
         while epoch < maxEpochs
@@ -213,7 +224,11 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
 
             err_val = B_val_norm - Yval;
             rmse_val(epoch, fold) = sqrt(mean(err_val(:).^2));
-        
+            last_val_rmse(fold) = rmse_val(epoch, fold);
+
+            Yval_denorm = Yval .* std_B + mu_B;
+            diff_val = B_validation - Yval_denorm;
+            mee_val(epoch, fold) = mean(sqrt(sum(diff_val.^2,2)));     
             %% Weights Update
             
             loss = sum(sum((B_train_norm - Yhat).^2)) / P_train;
@@ -294,11 +309,11 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     
             % Input -> Hidden1
             for j = 1:numHidden1
-                hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + alpha * d_b_h1(j);
+                hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + alpha * d_b_h1(j) / P_train;
                 for i = 1:N
                     hidden_layer1(j).input_connections(i).weight = ...
-                        hidden_layer1(j).input_connections(i).weight + alpha * d_W_h1(j,i) - ...
-                            lambda * sign(hidden_layer1(j).input_connections(i).weight);
+                        hidden_layer1(j).input_connections(i).weight + alpha * d_W_h1(j,i) / P_train - ...
+                            lambda * sign(hidden_layer1(j).input_connections(i).weight) / P_train;
                 end
             end
         
@@ -308,7 +323,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
                 for i = 1:numHidden1
                     hidden_layer2(j).input_connections(i).weight = ...
                         hidden_layer2(j).input_connections(i).weight + alpha *  d_W_h2(j,i) / P_train - ...
-                            lambda * sign(hidden_layer2(j).input_connections(i).weight);
+                            lambda * sign(hidden_layer2(j).input_connections(i).weight) / P_train;
                 end
             end
         
@@ -318,54 +333,49 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
                 for j = 1:numHidden2
                     output_layer(k).input_connections(j).weight = ...
                         output_layer(k).input_connections(j).weight + alpha * d_W_out(k,j) / P_train - ...
-                            lambda * sign(output_layer(k).input_connections(j).weight);
+                            lambda * sign(output_layer(k).input_connections(j).weight) / P_train;
                 end
             end
         
             % RMSE with collected network outputs over an epoch
             err = B_train_norm - Yhat;
             rmse_per_output = sqrt(mean(err.^2, 1));
+            rmse_history(epoch) = mean(rmse_per_output);
+            rmse_train(epoch, fold) = rmse_history(epoch);
         
             % Compute Mean Euclidian Error over an epoch
             mee_history(epoch) = total_error / P_train;
-            rmse_history(epoch) = mean(rmse_per_output);
-            rmse_train(epoch, fold) = rmse_history(epoch);
-
-            fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f | Alpha = %.6f\n', epoch, rmse_history(epoch), mee_history(epoch), alpha);
+            fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f\n', epoch, rmse_history(epoch), mee_history(epoch));
             disp(rmse_per_output);
-        
-            % Variable (linear decaying) learning rate
-            %if epoch <= tau
-            %    gamma = epoch / tau;
-            %    eta = (1 - gamma) * eta + gamma * eta_tau;
-            %else
-            %    eta = eta_tau;
-            %end
+    
+            % Early Stopping based on MEE (og scale)
+            if mee_val(epoch, fold) < best_val_mee * (1 - tolerance)
+                best_val_mee = mee_val(epoch, fold);
+                epochs_since_improvement = 0;
+            else
+                epochs_since_improvement = epochs_since_improvement + 1;
+            end
 
-            if epoch > patience
-                past_rmse = rmse_history(epoch - patience);
-                current_rmse = rmse_history(epoch);
-            
-                % Relative improvement over last patience epochs
-                improvement = (past_rmse - current_rmse) / max(past_rmse, 1e-8);
-            
-                if improvement < tolerance
-                    fprintf("EARLY STOP at epoch %d\n", epoch);
-                    break;
-                end
+            if epochs_since_improvement >= patience
+                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee);
+                break;
             end
             d_prev = d_vec;
         end
+        input_layer_final{fold}  = input_layer;
+        hidden_layer1_final{fold} = hidden_layer1;
+        hidden_layer2_final{fold} = hidden_layer2;
+        output_layer_final{fold}  = output_layer;
     end
 
     training_end_time = posixtime(datetime('now'));
 
     % Saving model's data
-    model.rmse_min = min(mean(rmse_train,2));
-    model.rmse_final =  mean(rmse_train(end,:));
-    model.rmse_validation = mean(rmse_val(end,:));
-    model.mee_min = min(mee_history);
-    model.mee_final = mee_history(end);
+    model.rmse_min = min(nanmean(rmse_train,2));
+    model.rmse_final = nanmean(rmse_train(end,:));
+    model.rmse_validation = nanmean(last_val_rmse);
+    model.mee_min = min(nanmean(mee_val,2));
+    model.mee_final = nanmean(mee_val(end,:));
 
     model.alpha = alpha;
     model.lambda = lambda;
@@ -377,10 +387,10 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     model.hidden_layer2_initial = hidden_layer2_initial;
     model.output_layer_initial = output_layer_initial;
 
-    model.input_layer_final = input_layer;
-    model.hidden_layer1_final = hidden_layer1;
-    model.hidden_layer2_final = hidden_layer2;
-    model.output_layer_final = output_layer;
+    model.input_layer_final = input_layer_final;
+    model.hidden_layer1_final = hidden_layer1_final;
+    model.hidden_layer2_final = hidden_layer2_final;
+    model.output_layer_final = output_layer_final;
 
     model.training_time = training_end_time - training_start_time;
 
@@ -394,21 +404,26 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     save(filename, 'model');
     
     % Plotting and saving the learning curve
+    mean_train_curve = nanmean(rmse_train,2);
+    mean_val_curve   = nanmean(rmse_val,2);
+
+    max_trained_epoch = max(sum(~isnan(rmse_train),1));
+
     [~, name, ~] = fileparts(filename);
     plot_file = fullfile('models', [name '_plot.png']);
     
     fig = figure('Visible','off');
-    plot(1:size(rmse_train, 2), mean(rmse_train, 2), 'b', 'LineWidth', 2); hold on;
-    plot(1:size(rmse_val, 2), mean(rmse_val, 2), 'r', 'LineWidth', 2);
+    plot(1:max_trained_epoch, mean_train_curve(1:max_trained_epoch), 'b', 'LineWidth', 2); hold on;
+    plot(1:max_trained_epoch, mean_val_curve(1:max_trained_epoch), 'r', 'LineWidth', 2);
     xlabel('Epoch'); ylabel('RMSE');
-    title(sprintf('Learning Curve | h1 = %d; h2 = %d; lambda = %g, beta = %g, R = %g, rho = %g, deltaMul = %g; Batch', ...
-        numHidden1, numHidden2, lambda, beta, delta_multiplicator));
+    title(sprintf('Learning Curve |  h1 = %d; h2 = %d; eta = %g; lambda = %g; Batch', ...
+        numHidden1, numHidden2, eta, lambda));
     grid on;
     
     exportgraphics(fig, plot_file);
     close(fig);
 
-    score = mee_history(end);
+    score = best_val_mee;
 %%
     function hidden_conns = generate_hidden_conns_from(input_units)
         % Kaiming Initialization

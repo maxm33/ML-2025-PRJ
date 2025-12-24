@@ -1,6 +1,6 @@
 % Grid Values
-numHidden1_vals = [60 50 40];
-numHidden2_vals = [40 50 60];
+numHidden1_vals = [100 90 80 70];
+numHidden2_vals = [70 80 90 100];
 eta_vals        = [1e-1 9e-2 8e-2 7e-2 6e-2 2e-1];
 lambda_vals     = [1e-5 1e-6 1e-7];
 
