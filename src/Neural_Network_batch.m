@@ -22,7 +22,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
 
     % Early Stopping
     patience = 200;              
-    tolerance = 0.05;                           % minimum of 5% progress in patience epochs
+    tolerance = 0.005;                           % minimum of 0.5% progress in patience epochs
     maxEpochs = 10000;
     
     %% ===================================
@@ -31,7 +31,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     k = 5;
     cv = cvpartition(size(inputs_TR,1), 'KFold', k);
 
-    input_layer_initial  = cell(1,k);
+    input_layer_initial   = cell(1,k);
     hidden_layer1_initial = cell(1,k);
     hidden_layer2_initial = cell(1,k);
     output_layer_initial  = cell(1,k);
@@ -59,9 +59,6 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
         eta_current = eta;
         best_val_mee = inf;
         epochs_since_improvement = 0;
-    
-        mee_history = nan(1, maxEpochs);
-        rmse_history = nan(1, maxEpochs);
 
         %% ===================================
         % NEURAL NETWORK CONFIGURATION (fully connected)
@@ -88,7 +85,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
         end
     
         % Saving initial weights configuration
-        input_layer_initial{fold}  = input_layer;
+        input_layer_initial{fold}   = input_layer;
         hidden_layer1_initial{fold} = hidden_layer1;
         hidden_layer2_initial{fold} = hidden_layer2;
         output_layer_initial{fold}  = output_layer;
@@ -120,10 +117,10 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
         epoch = 0;
         while epoch < maxEpochs
             epoch = epoch + 1;
-        
-            total_error = 0;
+
             Yhat = zeros(P_train, M);
-    
+            Yval = zeros(P_val,M);
+
             % Gradient Accumulators
             grad_W_h1 = zeros(numHidden1, N); grad_b_h1 = zeros(1,numHidden1);
             grad_W_h2 = zeros(numHidden2, numHidden1); grad_b_h2 = zeros(1,numHidden2);
@@ -145,19 +142,13 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
                 for i = 1:M
                     output_layer(i).compute();
                     outputs(i) = output_layer(i).output;
-                    Yhat(p,:) = outputs;
                 end
+                Yhat(p,:) = outputs;
                 
-                outputs_denorm = outputs .* std_B + mu_B;
-                denorm_diff = B_train(p,:) - outputs_denorm;
-                total_error = total_error + sqrt(sum(denorm_diff.^2));
                 %% BackPropagation phase
         
                 % Output signals
-                output_signals = zeros(1,M);
-                for k = 1:M
-                    output_signals(k) = (B_train_norm(p,k) - outputs(k));
-                end
+                output_signals = (B_train_norm(p,:) - outputs);
         
                 % Hidden layer 2 signals
                 hidden2_signals = zeros(1, numHidden2);
@@ -208,7 +199,6 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
             
             %% Validation
 
-            Yval = zeros(P_val,M);
             for p = 1:P_val
                 for i = 1:N
                     input_layer(i).output = A_validation(p,i); % load pattern p
@@ -223,17 +213,30 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
                 for i = 1:M
                     output_layer(i).compute();
                     outputs(i) = output_layer(i).output;
-                    Yval(p,:) = outputs;
                 end
+                Yval(p,:) = outputs;
             end
 
+            % RMSE validation over an epoch
             err_val = B_val_norm - Yval;
-            rmse_val(epoch, fold) = sqrt(mean(err_val(:).^2));
+            rmse_val_per_output = sqrt(mean(err_val.^2, 1));   % per-output RMSE
+            rmse_val(epoch, fold) = mean(rmse_val_per_output); % average over outputs
             last_val_rmse(fold) = rmse_val(epoch, fold);
 
+            % Compute Mean Euclidian Error over an epoch
             Yval_denorm = Yval .* std_B + mu_B;
             diff_val = B_validation - Yval_denorm;
             mee_val(epoch, fold) = mean(sqrt(sum(diff_val.^2,2)));
+
+
+            % If it's diverging, stop
+            if any(isnan(mee_val(epoch, fold))) || any(isinf(mee_val(epoch, fold)))
+                fprintf('MODEL -> h1 = %d; h2 = %d; eta = %g; lambda = %g;\n',...
+                    numHidden1, numHidden2, eta, lambda);
+                fprintf("NaN detected at epoch %d fold %d — stopping model\n\n", epoch, fold);
+                break;
+            end
+
             %% Weights Update
         
             % Input -> Hidden1
@@ -266,15 +269,15 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
                 end
             end
         
-            % RMSE with collected network outputs over an epoch
+            % RMSE training over an epoch
             err = B_train_norm - Yhat;
             rmse_per_output = sqrt(mean(err.^2, 1));
-            rmse_history(epoch) = mean(rmse_per_output);
-            rmse_train(epoch, fold) = rmse_history(epoch);
-        
-            % Compute Mean Euclidian Error over an epoch
-            mee_history(epoch) = total_error / P_train;
-            fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f\n', epoch, rmse_history(epoch), mee_history(epoch));
+            rmse_train(epoch, fold) = mean(rmse_per_output);
+
+            fprintf('MODEL -> h1 = %d; h2 = %d; eta = %g; lambda = %g;\n',...
+                numHidden1, numHidden2, eta, lambda);
+            fprintf('Epoch %d | Fold %d | RMSE_TR (norm) = %.6f | RMSE_VL (norm) = %.6f | MEE (og scale) = %.6f\n',...
+                epoch, fold, rmse_train(epoch, fold), rmse_val(epoch, fold), mee_val(epoch, fold));
             disp(rmse_per_output);
     
             % Early Stopping based on MEE (og scale)
@@ -286,7 +289,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
             end
 
             if epochs_since_improvement >= patience
-                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee);
+                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n\n", epoch, best_val_mee);
                 break;
             end
 
@@ -298,7 +301,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
                 eta_current = eta_tau;
             end
         end
-        input_layer_final{fold}  = input_layer;
+        input_layer_final{fold}   = input_layer;
         hidden_layer1_final{fold} = hidden_layer1;
         hidden_layer2_final{fold} = hidden_layer2;
         output_layer_final{fold}  = output_layer;
@@ -318,15 +321,15 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
 
-    model.input_layer_initial = input_layer_initial;
+    model.input_layer_initial   = input_layer_initial;
     model.hidden_layer1_initial = hidden_layer1_initial;
     model.hidden_layer2_initial = hidden_layer2_initial;
-    model.output_layer_initial = output_layer_initial;
+    model.output_layer_initial  = output_layer_initial;
 
-    model.input_layer_final = input_layer_final;
+    model.input_layer_final   = input_layer_final;
     model.hidden_layer1_final = hidden_layer1_final;
     model.hidden_layer2_final = hidden_layer2_final;
-    model.output_layer_final = output_layer_final;
+    model.output_layer_final  = output_layer_final;
 
     model.training_time = training_end_time - training_start_time;
 
@@ -359,7 +362,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     exportgraphics(fig, plot_file);
     close(fig);
 
-    score = best_val_mee;
+    score = min(nanmean(mee_val,2));
 %%
     function hidden_conns = generate_hidden_conns_from(input_units, fan_out)
         % Normal Xavier Initialization
@@ -376,7 +379,7 @@ function score = Neural_Network_batch(numHidden1, numHidden2, eta, lambda)
     function output_conns = generate_output_conns_from(hidden_units)
         % Normal Xavier Initialization
         fan_in = numel(hidden_units);
-        xavier = sqrt(2 / fan_in);
+        xavier = sqrt(1 / fan_in);
     
         output_conns(1, fan_in) = struct('neuron',[],'weight',[]);
         for n = 1:fan_in
