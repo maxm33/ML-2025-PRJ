@@ -14,7 +14,8 @@ for k = 1:numel(files)
 
     if model.rmse_min <= threshold
         totalCount = totalCount + 1;
-        fprintf("%s\n", files(k).name);
+        fprintf("%s | RMSE_TR (min): %.6f | RMSE_VL: %.6f | MEE (min): %.6f \n",...
+            files(k).name, model.rmse_min, model.rmse_validation, model.mee_min);
     end
 
     totalElems = totalElems + 1;

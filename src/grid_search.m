@@ -1,15 +1,18 @@
 function [bestParams, bestScore] = grid_search_SGD()
     % Grid Values
-    numHidden_vals  = [70 80 90 100];
-    eta_vals        = [4e-2 3e-2 2e-2 1e-2 9e-3 7e-3 5e-3];
-    lambda_vals     = [1e-5 1e-6 1e-7 1e-8 1e-9];
+    numHidden_vals  = [50 60 70 80];
+    eta_vals        = [1e-2 9e-3 8e-3 7e-3 6e-3 5e-3];
+    lambda_vals     = [1e-7 1e-8 1e-9];
+    alpha_vals      = [0.5 0.6 0.7 0.75 0.8 0.85];
     
     % Combinations
     combo = [];
     for c = lambda_vals
         for a = numHidden_vals
-            for b = eta_vals
-                combo = [combo; a b c];
+            for d = alpha_vals
+                for b = eta_vals
+                    combo = [combo; a b c d];
+                end
             end
         end
     end
@@ -26,8 +29,9 @@ function [bestParams, bestScore] = grid_search_SGD()
         h1 = combo(i,1);
         eta = combo(i,2);
         lambda = combo(i,3);
+        alpha = combo(i,4)
     
-        results(i) = Neural_Network_SGD(h1, eta, lambda);
+        results(i) = Neural_Network_SGD(h1, eta, lambda, alpha);
     end
     
     [bestScore, bestIdx] = min(results);

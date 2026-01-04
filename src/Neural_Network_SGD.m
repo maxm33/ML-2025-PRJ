@@ -1,4 +1,4 @@
-function score = Neural_Network_SGD(numHidden, eta, lambda)
+function score = Neural_Network_SGD(numHidden, eta, lambda, alpha)
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
     % ====================================
@@ -14,10 +14,15 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
     % numHidden                                 % # of units inside Hidden Layer
     % eta                                       % initial Learning Rate
     % lambda                                    % factor for L1 Regularization
+    % alpha                                     % factor for Heavy-Ball Momentum
+
+    eta_current = eta;
+    eta_tau = eta / 10;                         % eta to use from epoch tau
+    tau = 500;                                  % epoch where eta will be fully decayed
 
     % Early Stopping
-    patience = 300;              
-    tolerance = 0.001;                          % minimum of 0.1% progress in patience epochs
+    patience = 200;              
+    tolerance = 0.0005;                         % minimum of 0.05% progress in patience epochs
     maxEpochs = 10000;
     
     %% ===================================
@@ -78,7 +83,7 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
         end
         
         for i = 1:numHidden
-            hidden_layer(i) = neuron_hidden_unit(generate_hidden_conns_from(input_layer, M));
+            hidden_layer(i) = neuron_hidden_unit(generate_hidden_conns_from(input_layer));
         end
         
         for i = 1:M
@@ -93,6 +98,19 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
         %% ===================================
         % BACKPROPAGATION TRAINING LOOP
         % ====================================
+
+        % Initialize velocity for weights and biases
+        v_hidden_bias  = zeros(1, numHidden);
+        v_hidden_weights = cell(1, numHidden);
+        for j = 1:numHidden
+            v_hidden_weights{j} = zeros(1,N);          % one per input -> hidden connection
+        end
+        
+        v_output_bias = zeros(1,M);
+        v_output_weights = cell(1,M);
+        for m = 1:M
+            v_output_weights{m} = zeros(1,numHidden);  % one per hidden -> output connection
+        end
 
         epoch = 0;
         while epoch < maxEpochs
@@ -124,39 +142,55 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
                 %% BackPropagation phase
 
                 % Output signals
-                output_signals = (B_train_norm(p,:) - outputs);
+                output_signals = (outputs - B_train_norm(p,:));
         
                 % Hidden layer signals
                 hidden_signals = zeros(1,numHidden);
                 for j = 1:numHidden
-                    s = 0;
+                    summation = 0;
                     for m = 1:M
-                        s = s + output_signals(m) * output_layer(m).input_connections(j).weight;
+                        summation = summation + output_signals(m) * output_layer(m).input_connections(j).weight;
                     end
-                    hidden_signals(j) = s * hidden_layer(j).Leaky_ReLU_derivative(hidden_layer(j).net);
+                    hidden_signals(j) = summation * hidden_layer(j).Leaky_ReLU_derivative(hidden_layer(j).net);
                 end
         
                 %% Weights Update
                 
                 % Hidden -> Output
                 for m = 1:M
-                    output_layer(m).bias_weight = output_layer(m).bias_weight + eta * output_signals(m);
+                    % update bias velocity
+                    v_output_bias(m) = alpha * v_output_bias(m) - eta_current * output_signals(m);
+                    output_layer(m).bias_weight = output_layer(m).bias_weight + v_output_bias(m);
+                
                     for j = 1:numHidden
-                        w = output_layer(m).input_connections(j).weight;
-                        output_layer(m).input_connections(j).weight = ...
-                            w + eta * output_signals(m) * hidden_layer(j).output ...
-                            - lambda * sign(w);
+                        % compute gradient
+                        grad = output_signals(m) * hidden_layer(j).output;
+                
+                        % update velocity
+                        v_output_weights{m}(j) = alpha * v_output_weights{m}(j) - eta_current * grad;
+                
+                        % update weight
+                        output_layer(m).input_connections(j).weight = output_layer(m).input_connections(j).weight + v_output_weights{m}(j)...
+                            - eta_current * lambda * sign(output_layer(m).input_connections(j).weight);
                     end
                 end
         
                 % Input -> Hidden
                 for j = 1:numHidden
-                    hidden_layer(j).bias_weight = hidden_layer(j).bias_weight + eta * hidden_signals(j);
+                    % update bias velocity
+                    v_hidden_bias(j) = alpha * v_hidden_bias(j) - eta_current * hidden_signals(j);
+                    hidden_layer(j).bias_weight = hidden_layer(j).bias_weight + v_hidden_bias(j);
+                
                     for i = 1:N
-                        w = hidden_layer(j).input_connections(i).weight;
-                        hidden_layer(j).input_connections(i).weight = ...
-                            w + eta * hidden_signals(j) * input_layer(i).output ...
-                            - lambda * sign(w);
+                        % compute gradient
+                        grad = hidden_signals(j) * input_layer(i).output;
+                
+                        % update velocity
+                        v_hidden_weights{j}(i) = alpha * v_hidden_weights{j}(i) - eta_current * grad;
+                
+                        % update weight
+                        hidden_layer(j).input_connections(i).weight = hidden_layer(j).input_connections(i).weight + v_hidden_weights{j}(i)...
+                            - eta_current * lambda * sign(hidden_layer(j).input_connections(i).weight);
                     end
                 end
             end
@@ -189,31 +223,45 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
             diff_val = B_validation - Yval_den;
             mee_val(epoch,fold) = mean(sqrt(sum(diff_val.^2,2)));
         
-            fprintf('MODEL -> h1 = %d; eta = %g; lambda = %g;\n',...
-                numHidden, eta, lambda);
+            fprintf('MODEL -> h1 = %d; eta = %g; lambda = %g; alpha = %g\n',...
+                numHidden, eta, lambda, alpha);
             fprintf('Epoch %d | Fold %d | RMSE_TR (norm) = %.6f | RMSE_VL (norm) = %.6f | MEE (og scale) = %.6f\n',...
                 epoch, fold, rmse_train(epoch, fold), rmse_val(epoch, fold), mee_val(epoch, fold));
             disp(rmse_per_output);
         
             % If it's diverging, stop
             if isnan(mee_val(epoch,fold)) || isinf(mee_val(epoch,fold))
-                fprintf('MODEL -> h1 = %d; eta = %g; lambda = %g;\n',...
-                    numHidden, eta, lambda);
+                fprintf('MODEL -> h1 = %d; eta = %g; lambda = %g; alpha = %g\n',...
+                    numHidden, eta, lambda, alpha);
                 fprintf("NaN detected at epoch %d fold %d — stopping model\n\n", epoch, fold);
                 break;
             end
         
-            % Early Stopping based on MEE (og scale)
-            if mee_val(epoch,fold) < best_val_mee * (1 - tolerance)
-                best_val_mee = mee_val(epoch,fold);
-                epochs_since_improvement = 0;
+            if epoch > tau
+                % Early Stopping based on MEE (og scale)
+                if mee_val(epoch,fold) < best_val_mee * (1 - tolerance)
+                    best_val_mee = mee_val(epoch,fold);
+                    epochs_since_improvement = 0;
+                else
+                    epochs_since_improvement = epochs_since_improvement + 1;
+                end
+            
+                if epochs_since_improvement >= patience
+                    fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n\n", epoch, best_val_mee);
+                    break;
+                end
             else
-                epochs_since_improvement = epochs_since_improvement + 1;
+                % before tau, always reset patience
+                best_val_mee = min(best_val_mee, mee_val(epoch,fold));
+                epochs_since_improvement = 0;
             end
-        
-            if epochs_since_improvement >= patience
-                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n\n", epoch, best_val_mee);
-                break;
+
+            % Variable (linear decaying) learning rate
+            if epoch <= tau
+                gamma = epoch / tau;
+                eta_current = (1 - gamma) * eta + gamma * eta_tau;
+            else
+                eta_current = eta_tau;
             end
         end
         input_layer_final{fold}  = input_layer;
@@ -231,6 +279,7 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
     model.mee_final = nanmean(mee_val(end,:));
 
     model.eta = eta;
+    model.alpha = alpha;
     model.lambda = lambda;
     model.numHidden = numHidden;
 
@@ -249,8 +298,8 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
     end
 
     filename = sprintf( ...
-        'models/h1-%d-eta-%g-lambda-%g_%d.mat', ...
-        numHidden, eta, lambda, randi(1e6));
+        'models/h1-%d-eta-%g-lambda-%g-alpha-%g_%d.mat', ...
+        numHidden, eta, lambda, alpha, randi(1e6));
     save(filename, 'model');
 
     % Plotting and saving the learning curve
@@ -266,8 +315,8 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
     plot(1:max_trained_epoch, mean_train_curve(1:max_trained_epoch), 'b', 'LineWidth', 2); hold on;
     plot(1:max_trained_epoch, mean_val_curve(1:max_trained_epoch), 'r', 'LineWidth', 2);
     xlabel('Epoch'); ylabel('RMSE');
-    title(sprintf('Learning Curve |  h1 = %d; eta = %g; lambda = %g; SGD', ...
-        numHidden, eta, lambda));
+    title(sprintf('Learning Curve |  h1 = %d; eta = %g; lambda = %g; alpha = %g; SGD', ...
+        numHidden, eta, lambda, alpha));
     grid on;
     
     exportgraphics(fig, plot_file);
@@ -275,20 +324,20 @@ function score = Neural_Network_SGD(numHidden, eta, lambda)
 
     score = min(nanmean(mee_val,2));
 %%
-    function hidden_conns = generate_hidden_conns_from(input_units, fan_out)
-        % Normal Xavier Initialization
+    function hidden_conns = generate_hidden_conns_from(input_units)
+        % He-Kaiming Initialization
         fan_in = numel(input_units);
-        xavier = sqrt(2 / (fan_in + fan_out));
+        kaiming = sqrt(2 / fan_in);
     
         hidden_conns(1, fan_in) = struct('neuron',[],'weight',[]);
         for n = 1:fan_in
             hidden_conns(n).neuron = input_units(n);
-            hidden_conns(n).weight = randn * xavier;
+            hidden_conns(n).weight = randn * kaiming;
         end
     end
     
     function output_conns = generate_output_conns_from(hidden_units)
-        % Normal Xavier Initialization
+        % Xavier Initialization
         fan_in = numel(hidden_units);
         xavier = sqrt(1 / fan_in);
     
