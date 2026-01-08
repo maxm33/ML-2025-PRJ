@@ -18,7 +18,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
 
     % Early Stopping
     patience = 200;              
-    tolerance = 0.05;                           % minimum of 5% progress in patience epochs
+    tolerance = 0.005;                           % minimum of 1% progress in patience epochs
     maxEpochs = 10000;
     
     %% ===================================
@@ -36,6 +36,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     rmse_val   = nan(maxEpochs, k);
     mee_val    = nan(maxEpochs, k);
     last_val_rmse = nan(1,k);
+    best_val_mee = inf(1,k);
 
     training_start_time = posixtime(datetime('now'));
 
@@ -52,8 +53,8 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
         P_train = size(A_train,1);
         P_val = size(A_validation,1);
 
-        best_val_mee = inf;
         epochs_since_improvement = 0;
+        best_val_mee(fold) = inf;
     
         mee_history = nan(1, maxEpochs);
         rmse_history = nan(1, maxEpochs);
@@ -231,7 +232,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             mee_val(epoch, fold) = mean(sqrt(sum(diff_val.^2,2)));     
             %% Weights Update
             
-            loss = sum(sum((B_train_norm - Yhat).^2)) / P_train;
+            loss =  mean((B_train_norm - Yhat).^2, 'all');
             g = [
                 grad_W_h1(:);
                 grad_b_h1(:);
@@ -244,41 +245,39 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             if epoch == 1
                 gamma = 1;
                 d_prev = g;
+                f_ref =  loss;
+                f_best =  loss;
+                delta = delta_multiplicator; 
+                r = 0;
             else
-                g_norm = g / (norm(g) + 1e-12);
-                d_prev_norm = d_prev / (norm(d_prev) + 1e-12);
-    
-                num = dot(d_prev_norm, d_prev_norm - g_norm);
-                den = norm(g_norm - d_prev_norm)^2 + 1e-6; 
+                num = dot(d_prev, d_prev - g);
+                den = norm(g - d_prev)^2 + 1e-8; 
                 gamma_star = num / den;
-                gamma = min(1, max(0, gamma_star));
-                fprintf('GammaStar: %f ', gamma_star)
+                if ~isfinite(num) || ~isfinite(den)
+                    gamma = 0;
+                else
+                    gamma = min(1, max(0.2, gamma_star));
+                    fprintf('GammaStar: %f ', gamma_star)
+                end
             end
     
             d_vec = gamma * g + (1 - gamma) * d_prev;
             d = norm(d_vec)^2;
     
-            if(epoch == 1)
-                f_ref =  loss;
-                f_best =  loss;
-                delta = delta_multiplicator * loss; 
-                %R = 5; %dopo quanto aggiorno delta in caso di miglioramento
-                %non soddisfaciente
-                r = 0;
-                %beta = 0.0015;
-                %rho = 0.8; %per l'aggiornamento di delta
-            end
-    
             numeratore = max(0, loss - (f_ref - delta));
             if numeratore == 0
                 f_ref = loss;        
-                delta = rho * delta;
                 r = 0;
             end
-            beta = min(beta, gamma);
+            beta_eff = min(beta, gamma);
             epsilon = 1e-8;
-            alpha = beta * (numeratore) / (d + epsilon); %epsilon permette di evitare divisione per 0
-        
+            alpha = beta_eff * (numeratore) / (d + epsilon); %epsilon permette di evitare divisione per 0
+            alpha = max(alpha, 1e-3);
+            if ~isfinite(alpha)
+                alpha = 1e-3;
+            end
+
+
             if(loss <= f_ref-delta/2) %significa che si è arrivati vicini al valore ottimo stimato quindi si migliora
                 f_ref = f_best;
                 r = 0;
@@ -309,31 +308,31 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     
             % Input -> Hidden1
             for j = 1:numHidden1
-                hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + alpha * d_b_h1(j) / P_train;
+                hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + alpha * d_b_h1(j);
                 for i = 1:N
                     hidden_layer1(j).input_connections(i).weight = ...
-                        hidden_layer1(j).input_connections(i).weight + alpha * d_W_h1(j,i) / P_train - ...
-                            lambda * sign(hidden_layer1(j).input_connections(i).weight) / P_train;
+                        hidden_layer1(j).input_connections(i).weight +  ...
+                            alpha *(d_W_h1(j,i) - lambda * sign(hidden_layer1(j).input_connections(i).weight));
                 end
             end
         
             % Hidden1 -> Hidden2
             for j = 1:numHidden2
-                hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + alpha * d_b_h2(j) / P_train;
+                hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + alpha * d_b_h2(j);
                 for i = 1:numHidden1
                     hidden_layer2(j).input_connections(i).weight = ...
-                        hidden_layer2(j).input_connections(i).weight + alpha *  d_W_h2(j,i) / P_train - ...
-                            lambda * sign(hidden_layer2(j).input_connections(i).weight) / P_train;
+                        hidden_layer2(j).input_connections(i).weight +  ...
+                            alpha *(d_W_h2(j,i) - lambda * sign(hidden_layer2(j).input_connections(i).weight));
                 end
             end
         
             % Hidden2 -> Output
             for k = 1:M
-                output_layer(k).bias_weight = output_layer(k).bias_weight + alpha * d_b_out(k) / P_train;
+                output_layer(k).bias_weight = output_layer(k).bias_weight + alpha * d_b_out(k);
                 for j = 1:numHidden2
                     output_layer(k).input_connections(j).weight = ...
-                        output_layer(k).input_connections(j).weight + alpha * d_W_out(k,j) / P_train - ...
-                            lambda * sign(output_layer(k).input_connections(j).weight) / P_train;
+                        output_layer(k).input_connections(j).weight +  ...
+                            alpha *(d_W_out(k,j) - lambda * sign(output_layer(k).input_connections(j).weight));
                 end
             end
         
@@ -349,15 +348,15 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             disp(rmse_per_output);
     
             % Early Stopping based on MEE (og scale)
-            if mee_val(epoch, fold) < best_val_mee * (1 - tolerance)
-                best_val_mee = mee_val(epoch, fold);
+            if mee_val(epoch, fold) < best_val_mee(fold) * (1 - tolerance)
+                best_val_mee(fold) = mee_val(epoch, fold);
                 epochs_since_improvement = 0;
             else
                 epochs_since_improvement = epochs_since_improvement + 1;
             end
 
             if epochs_since_improvement >= patience
-                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee);
+                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee(fold));
                 break;
             end
             d_prev = d_vec;
@@ -399,31 +398,38 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     end
 
     filename = sprintf( ...
-        'models/stepsizeRestrictedSGPTL-h1-%d-h2-%d-lambda-%g-beta-%g-R-%g-rho-%g-deltaMult-%g_%d.mat', ...
+        'models/SGPTL/stepsizeRestrictedSGPTL-h1-%d-h2-%d-lambda-%g-beta-%g-R-%g-rho-%g-deltaMult-%g_%d.mat', ...
         numHidden1, numHidden2, lambda, beta, delta_multiplicator, randi(1e6));
     save(filename, 'model');
     
     % Plotting and saving the learning curve
-    mean_train_curve = nanmean(rmse_train,2);
-    mean_val_curve   = nanmean(rmse_val,2);
+    % mean_train_curve = nanmean(rmse_train,2);
+    % mean_val_curve   = nanmean(rmse_val,2);
 
-    max_trained_epoch = max(sum(~isnan(rmse_train),1));
+    epochs_per_fold = sum(~isnan(rmse_train),1);
+    max_common_epoch = min(epochs_per_fold);
+
+    mean_train_curve = mean(rmse_train(1:max_common_epoch,:), 2, 'omitnan');
+    mean_val_curve   = mean(rmse_val(1:max_common_epoch,:),   2, 'omitnan');
+
+
+    % max_trained_epoch = max(sum(~isnan(rmse_train),1));
 
     [~, name, ~] = fileparts(filename);
-    plot_file = fullfile('models', [name '_plot.png']);
+    plot_file = fullfile('models/SGPTL', [name '_plot.png']);
     
     fig = figure('Visible','off');
-    plot(1:max_trained_epoch, mean_train_curve(1:max_trained_epoch), 'b', 'LineWidth', 2); hold on;
-    plot(1:max_trained_epoch, mean_val_curve(1:max_trained_epoch), 'r', 'LineWidth', 2);
+    plot(1:max_common_epoch, mean_train_curve(1:max_common_epoch), 'b', 'LineWidth', 2); hold on;
+    plot(1:max_common_epoch, mean_val_curve(1:max_common_epoch), 'r', 'LineWidth', 2);
     xlabel('Epoch'); ylabel('RMSE');
-    title(sprintf('Learning Curve |  h1 = %d; h2 = %d; eta = %g; lambda = %g; Batch', ...
-        numHidden1, numHidden2, eta, lambda));
+    title(sprintf('Learning Curve |  h1 = %d; h2 = %d; lambda = %g; beta: %g; deltaMul: %g; Batch', ...
+        numHidden1, numHidden2, lambda, beta, delta_multiplicator));
     grid on;
     
     exportgraphics(fig, plot_file);
     close(fig);
 
-    score = best_val_mee;
+    score = mean(best_val_mee);
 %%
     function hidden_conns = generate_hidden_conns_from(input_units)
         % Kaiming Initialization
@@ -440,12 +446,11 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     function output_conns = generate_output_conns_from(hidden_units)
         % Kaiming Initialization
         fan_in = numel(hidden_units);
-        kaiming = sqrt(2 / fan_in);
-    
+
         output_conns(1, fan_in) = struct('neuron',[],'weight',[]);
         for n = 1:fan_in
             output_conns(n).neuron = hidden_units(n);
-            output_conns(n).weight = randn * kaiming;
+            output_conns(n).weight = randn * 0.01;
         end
     end
 end

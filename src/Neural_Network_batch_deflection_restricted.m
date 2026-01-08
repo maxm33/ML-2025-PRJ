@@ -9,6 +9,32 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
     
     N = size(inputs_TR, 2);                     % 12 inputs
     M = size(outputs_TR, 2);                    % 4 outputs
+
+    % per MONK
+    % Dataset_TR = readtable('../../monk/monks-3.train', ...
+    % 'FileType','text', ...
+    % 'Delimiter',' ', ...
+    % 'MultipleDelimsAsOne',true, ...
+    % 'ReadVariableNames',false, ...
+    % 'TextType','string');
+    % 
+    % % rimuove colonne vuote
+    % Dataset_TR(:, all(ismissing(Dataset_TR),1)) = [];
+    % 
+    % X  = Dataset_TR{:, 2:7};
+    % Y = Dataset_TR{:, 1};
+    % 
+    % X_oh = [];
+    % for j = 1:size(X,2)
+    %     X_cat_j = categorical(X(:,j));
+    %     X_oh = [X_oh dummyvar(X_cat_j)];
+    % end
+    % 
+    % inputs_TR  = X_oh;
+    % outputs_TR = Y;
+    % 
+    % N = size(inputs_TR, 2);                     
+    % M = 1;
     
     % Hyper Parameters
     % numHidden1                                % # of units inside first Hidden Layer
@@ -18,7 +44,7 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
 
     % Early Stopping
     patience = 200;              
-    tolerance = 0.05;                           % minimum of 5% progress in patience epochs
+    tolerance = 0.003;                           % minimum of 5% progress in patience epochs
     maxEpochs = 10000;
     
     %% ===================================
@@ -36,6 +62,7 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
     rmse_val   = nan(maxEpochs, k);
     mee_val    = nan(maxEpochs, k);
     last_val_rmse = nan(1,k);
+    best_val_mee = inf(1,k);
 
     training_start_time = posixtime(datetime('now'));
 
@@ -52,7 +79,7 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
         P_train = size(A_train,1);
         P_val = size(A_validation,1);
 
-        best_val_mee = inf;
+        best_val_mee(fold) = inf;
         epochs_since_improvement = 0;
     
         mee_history = nan(1, maxEpochs);
@@ -231,7 +258,7 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
             mee_val(epoch, fold) = mean(sqrt(sum(diff_val.^2,2)));
             %% Weights Update
             
-            loss = sum(sum((B_train_norm - Yhat).^2)) / P_train;
+            loss =  mean((B_train_norm - Yhat).^2, 'all');
             g = [
                 grad_W_h1(:);
                 grad_b_h1(:);
@@ -253,14 +280,11 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
                 %delta = delta * loss;
                 f_best = loss - delta;
             else
-                g_norm = g / (norm(g) + 1e-12);
-                d_prev_norm = d_prev / (norm(d_prev) + 1e-12);
-    
-                num = dot(d_prev_norm, d_prev_norm - g_norm);
-                den = norm(g_norm - d_prev_norm)^2 + 1e-6; % 1e-6 agisce da smorzatore
+                num = dot(d_prev, d_prev - g);
+                den = norm(g - d_prev)^2 + 1e-6; % 1e-6 agisce da smorzatore
                 gamma_star = num / den;
                 gamma = min(1, max(0, gamma_star));
-                fprintf('GammaStar: %f ', gamma_star)
+                %fprintf('GammaStar: %f ', gamma_star)
                 if loss <= f_best
                     f_best = loss - delta; % Aggiornamento standard
                 else
@@ -280,7 +304,7 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
             epsilon = 1e-8;
             alpha = beta * (loss - f_best) / (norm(d_vec)^2 + epsilon);
     
-            alpha = max(alpha, 0);   %per evitare alpha negativi
+            alpha = max(alpha, 1e-3);   %per evitare alpha negativi
             alpha_prev = alpha;
             fprintf('Loss: %f | Alpha: %.8f | Gamma: %.8f | f_best: %.8f\n', loss, alpha, gamma, f_best);
     
@@ -302,31 +326,31 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
         
             % Input -> Hidden1
             for j = 1:numHidden1
-                hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + alpha * d_b_h1(j) / P_train;
+                hidden_layer1(j).bias_weight = hidden_layer1(j).bias_weight + alpha * d_b_h1(j);
                 for i = 1:N
                     hidden_layer1(j).input_connections(i).weight = ...
-                        hidden_layer1(j).input_connections(i).weight + alpha * d_W_h1(j,i) / P_train - ...
-                            lambda * sign(hidden_layer1(j).input_connections(i).weight) / P_train;
+                        hidden_layer1(j).input_connections(i).weight +  ...
+                            alpha *(d_W_h1(j,i) - lambda * sign(hidden_layer1(j).input_connections(i).weight));
                 end
             end
         
             % Hidden1 -> Hidden2
             for j = 1:numHidden2
-                hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + alpha * d_b_h2(j) / P_train;
+                hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + alpha * d_b_h2(j);
                 for i = 1:numHidden1
                     hidden_layer2(j).input_connections(i).weight = ...
-                        hidden_layer2(j).input_connections(i).weight + alpha *  d_W_h2(j,i) / P_train - ...
-                            lambda * sign(hidden_layer2(j).input_connections(i).weight) / P_train;
+                        hidden_layer2(j).input_connections(i).weight +  ...
+                            alpha *(d_W_h2(j,i) - lambda * sign(hidden_layer2(j).input_connections(i).weight));
                 end
             end
         
             % Hidden2 -> Output
             for k = 1:M
-                output_layer(k).bias_weight = output_layer(k).bias_weight + alpha * d_b_out(k) / P_train;
+                output_layer(k).bias_weight = output_layer(k).bias_weight + alpha * d_b_out(k);
                 for j = 1:numHidden2
                     output_layer(k).input_connections(j).weight = ...
-                        output_layer(k).input_connections(j).weight + alpha * d_W_out(k,j) / P_train - ...
-                            lambda * sign(output_layer(k).input_connections(j).weight) / P_train;
+                        output_layer(k).input_connections(j).weight +  ...
+                            alpha *(d_W_out(k,j) - lambda * sign(output_layer(k).input_connections(j).weight));
                 end
             end
         
@@ -339,18 +363,19 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
             % Compute Mean Euclidian Error over an epoch
             mee_history(epoch) = total_error / P_train;
             fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f\n', epoch, rmse_history(epoch), mee_history(epoch));
-            disp(rmse_per_output);
+
+            %disp(rmse_per_output);
     
             % Early Stopping based on MEE (og scale)
-            if mee_val(epoch, fold) < best_val_mee * (1 - tolerance)
-                best_val_mee = mee_val(epoch, fold);
-                epochs_since_improvement = 0;
+            if mee_val(epoch, fold) < best_val_mee(fold) * (1 - tolerance)
+                best_val_mee(fold) = mee_val(epoch, fold);
+                    epochs_since_improvement = 0;
             else
                 epochs_since_improvement = epochs_since_improvement + 1;
             end
 
             if epochs_since_improvement >= patience
-                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee);
+                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee(fold));
                 break;
             end
             d_prev = d_vec;
@@ -397,26 +422,32 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
     save(filename, 'model');
 
     % Plotting and saving the learning curve
-    mean_train_curve = nanmean(rmse_train,2);
-    mean_val_curve   = nanmean(rmse_val,2);
+    % mean_train_curve = nanmean(rmse_train,2);
+    % mean_val_curve   = nanmean(rmse_val,2);
 
-    max_trained_epoch = max(sum(~isnan(rmse_train),1));
+    epochs_per_fold = sum(~isnan(rmse_train),1);
+    max_common_epoch = min(epochs_per_fold);
+
+    mean_train_curve = mean(rmse_train(1:max_common_epoch,:), 2, 'omitnan');
+    mean_val_curve   = mean(rmse_val(1:max_common_epoch,:),   2, 'omitnan');
+
+    % max_trained_epoch = max(sum(~isnan(rmse_train),1));
 
     [~, name, ~] = fileparts(filename);
     plot_file = fullfile('models', [name '_plot.png']);
     
     fig = figure('Visible','off');
-    plot(1:max_trained_epoch, mean_train_curve(1:max_trained_epoch), 'b', 'LineWidth', 2); hold on;
-    plot(1:max_trained_epoch, mean_val_curve(1:max_trained_epoch), 'r', 'LineWidth', 2);
+    plot(1:max_common_epoch, mean_train_curve(1:max_common_epoch), 'b', 'LineWidth', 2); hold on;
+    plot(1:max_common_epoch, mean_val_curve(1:max_common_epoch), 'r', 'LineWidth', 2);
     xlabel('Epoch'); ylabel('RMSE');
-    title(sprintf('Learning Curve |  h1 = %d; h2 = %d; eta = %g; lambda = %g; Batch', ...
-        numHidden1, numHidden2, eta, lambda));
+    title(sprintf('Learning Curve |  h1 = %d; h2 = %d; lambda = %g; beta: %g; deltaMul: %g; Batch', ...
+        numHidden1, numHidden2, lambda, beta, delta_multiplicator));
     grid on;
     
     exportgraphics(fig, plot_file);
     close(fig);
 
-    score = best_val_mee;
+     score = mean(best_val_mee);
 %%
     function hidden_conns = generate_hidden_conns_from(input_units)
         % Kaiming Initialization
@@ -433,12 +464,11 @@ function score = Neural_Network_batch_deflection_restricted(numHidden1, numHidde
     function output_conns = generate_output_conns_from(hidden_units)
         % Kaiming Initialization
         fan_in = numel(hidden_units);
-        kaiming = sqrt(2 / fan_in);
     
         output_conns(1, fan_in) = struct('neuron',[],'weight',[]);
         for n = 1:fan_in
             output_conns(n).neuron = hidden_units(n);
-            output_conns(n).weight = randn * kaiming;
+            output_conns(n).weight = randn * 0.01;
         end
     end
 end
