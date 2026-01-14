@@ -1,4 +1,4 @@
-classdef neuron_hidden_unit_tahn < handle
+classdef neuron_hidden_unit_MONK < handle
     properties
         bias_weight = 0
         input_connections
@@ -6,7 +6,7 @@ classdef neuron_hidden_unit_tahn < handle
         output
     end
     methods
-        function obj = neuron_hidden_unit_tahn(input_connections)
+        function obj = neuron_hidden_unit_MONK(input_connections)
             obj.input_connections = input_connections;
         end
         

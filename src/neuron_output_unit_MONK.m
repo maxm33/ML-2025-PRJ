@@ -1,4 +1,4 @@
-classdef neuron_output_unit_sigmoid < handle
+classdef neuron_output_unit_MONK < handle
 
     properties
         bias_weight = 0
@@ -9,7 +9,7 @@ classdef neuron_output_unit_sigmoid < handle
 
     methods
         % Constructor
-        function obj = neuron_output_unit_sigmoid(input_connections)
+        function obj = neuron_output_unit_MONK(input_connections)
             obj.input_connections = input_connections;
         end
 

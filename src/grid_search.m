@@ -1,17 +1,20 @@
 function [bestParams, bestScore] = grid_search_SGD()
     % Grid Values
-    numHidden_vals  = [50 60 70 80];
-    eta_vals        = [1e-2 9e-3 8e-3 7e-3 6e-3 5e-3];
-    lambda_vals     = [1e-7 1e-8 1e-9];
-    alpha_vals      = [0.5 0.6 0.7 0.75 0.8 0.85];
+    numHidden1_vals = [30];
+    numHidden2_vals = [10];
+    eta_vals        = [5e-4];
+    lambda_vals     = [1e-4];
+    alpha_vals      = [0.4];
     
     % Combinations
     combo = [];
-    for c = lambda_vals
-        for a = numHidden_vals
-            for d = alpha_vals
-                for b = eta_vals
-                    combo = [combo; a b c d];
+    for e = alpha_vals
+        for d = lambda_vals
+            for b = numHidden2_vals
+                for a = numHidden1_vals
+                    for c = eta_vals
+                        combo = [combo; a b c d e];
+                    end 
                 end
             end
         end
@@ -27,11 +30,12 @@ function [bestParams, bestScore] = grid_search_SGD()
     
     parfor i = 1:numCombo
         h1 = combo(i,1);
-        eta = combo(i,2);
-        lambda = combo(i,3);
-        alpha = combo(i,4)
+        h2 = combo(i,2);
+        eta = combo(i,3);
+        lambda = combo(i,4);
+        alpha = combo(i,5)
     
-        results(i) = Neural_Network_SGD(h1, eta, lambda, alpha);
+        results(i) = Neural_Network_SGD(h1, h2, eta, lambda, alpha);
     end
     
     [bestScore, bestIdx] = min(results);
@@ -184,7 +188,56 @@ function [bestParams1, bestScore1, bestParams2, bestScore2] = grid_search_deflec
     bestParams2 = combo(bestIdx2,:);
 end
 
-grid_search_SGD();
+function [bestParams, bestScore] = grid_search_minibatch()
+    % Grid Values
+    numHidden1_vals = [30];
+    numHidden2_vals = [60];
+    eta_vals        = [0.1];
+    lambda_vals     = [0.0005];
+    alpha_vals      = [0.3];
+    mb_vals         = [500];
+    
+    % Combinations
+    combo = [];
+    for e = alpha_vals
+        for d = lambda_vals
+            for b = numHidden2_vals
+                for a = numHidden1_vals
+                    for c = eta_vals
+                        for f = mb_vals
+                            combo = [combo; a b c d e f];
+                        end
+                    end 
+                end
+            end
+        end
+    end
+    
+    % Start parallel pool
+    if isempty(gcp('nocreate'))
+        parpool;     
+    end
+    
+    numCombo = size(combo,1);
+    results = zeros(numCombo,1);
+    
+    parfor i = 1:numCombo
+        h1 = combo(i,1);
+        h2 = combo(i,2);
+        eta = combo(i,3);
+        lambda = combo(i,4);
+        alpha = combo(i,5)
+        mb = combo(i,6)
+    
+        results(i) = Neural_Network_minibatch(h1, h2, eta, lambda, alpha, mb);
+    end
+    
+    [bestScore, bestIdx] = min(results);
+    bestParams = combo(bestIdx,:);
+end
+
+%grid_search_SGD();
 %grid_search_batch();
 %grid_search_deflectedSubgradient();
 %grid_search_deflectedSubgradient_SGPTL();
+grid_search_minibatch();
