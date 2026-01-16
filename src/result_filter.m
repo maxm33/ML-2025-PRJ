@@ -10,6 +10,17 @@ if ~exist(discarded_dir, 'dir'), mkdir(discarded_dir); end
 
 files = dir(fullfile(models_dir, '*.mat'));
 
+required_fields = { ...
+    'mee_cv_mean', ...
+    'rmse_val_min', ...
+    'rmse_train_min', ...
+    'numHidden1', ...
+    'numHidden2', ...
+    'eta', ...
+    'lambda', ...
+    'alpha' ...
+};
+
 good_list = struct( ...
     'name', {}, ...
     'mee', {}, ...
@@ -23,16 +34,36 @@ good_list = struct( ...
 
 for k = 1:numel(files)
     matFile = fullfile(models_dir, files(k).name);
-    data    = load(matFile);
-    model   = data.model;
-
     [~, baseName, ~] = fileparts(matFile);
     plotFile = fullfile(models_dir, [baseName, '_plot.png']);
     hasPlot  = isfile(plotFile);
 
+    try
+        data = load(matFile);
+    catch
+        delete(matFile);
+        if hasPlot, delete(plotFile); end
+        continue;
+    end
+
+    % model struct must exist
+    if ~isfield(data, 'model') || ~isstruct(data.model)
+        delete(matFile);
+        if hasPlot, delete(plotFile); end
+        continue;
+    end
+
+    model = data.model;
+
+    if ~all(isfield(model, required_fields))
+        delete(matFile);
+        if hasPlot, delete(plotFile); end
+        continue;
+    end
+
     if model.mee_cv_mean <= 19.5 && model.rmse_val_min <= 0.6
         targetDir = good_dir;
-    
+
         entry.name   = files(k).name;
         entry.mee    = model.mee_cv_mean;
         entry.rmse   = model.rmse_val_min;
@@ -41,7 +72,7 @@ for k = 1:numel(files)
         entry.eta    = model.eta;
         entry.lambda = model.lambda;
         entry.alpha  = model.alpha;
-    
+
         good_list(end+1) = entry;
 
     elseif model.rmse_train_min <= 0.3
@@ -52,11 +83,13 @@ for k = 1:numel(files)
     end
 
     movefile(matFile, targetDir);
-    if hasPlot, movefile(plotFile, targetDir); end
+    if hasPlot
+        movefile(plotFile, targetDir);
+    end
 end
 
 % ============================
-% TOP 20 MODELS
+% TOP MODELS
 % ============================
 
 if isempty(good_list)
