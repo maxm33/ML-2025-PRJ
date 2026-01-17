@@ -13,8 +13,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     tolerance = 0.01;
     maxEpochs = 5000;
     
-    %% INTERNAL TEST SET (15% hold-out)
-    cv_test = cvpartition(Ns,'HoldOut',0.15);
+    %% INTERNAL TEST SET (20% hold-out)
+    cv_test = cvpartition(Ns,'HoldOut',0.2);
 
     idx_test = test(cv_test);
     idx_rest = training(cv_test);
@@ -75,6 +75,11 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         A_vl_norm = (A_vl - muA) ./ stdA;
         B_tr_norm = (B_tr - muB) ./ stdB;
         B_vl_norm = (B_vl - muB) ./ stdB;
+
+        model.norm(fold).muA  = muA;
+        model.norm(fold).stdA = stdA;
+        model.norm(fold).muB  = muB;
+        model.norm(fold).stdB = stdB;
         
         P_tr = size(A_tr,1);
         
