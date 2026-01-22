@@ -2,14 +2,14 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     %% LOADING DATA
     Dataset = readtable('../data/TR/ML-CUP25-TR.csv');
     
-    inputs_raw  = Dataset{:,2:13};
+    inputs_raw = Dataset{:,2:13};
     outputs_raw = Dataset{:,14:end};
     
     [Ns, N] = size(inputs_raw);
     M = size(outputs_raw,2);
     
     %% STOPPING SETTINGS
-    patience  = 400;
+    patience = 400;
     tolerance = 0.01;
     maxEpochs = 5000;
     
@@ -30,30 +30,30 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     cv = cvpartition(sum(idx_rest),'KFold',k);
     
     rmse_train = nan(maxEpochs,k);
-    rmse_val   = nan(maxEpochs,k);
-    rmse_test  = nan(maxEpochs,k);
+    rmse_val = nan(maxEpochs,k);
+    rmse_test = nan(maxEpochs,k);
     
-    mee_train    = nan(maxEpochs,k);
-    mee_val      = nan(maxEpochs,k);
+    mee_train = nan(maxEpochs,k);
+    mee_val = nan(maxEpochs,k);
     mee_val_norm = nan(maxEpochs,k);
-    mee_test     = nan(maxEpochs,k);
+    mee_test = nan(maxEpochs,k);
     
     best_mee_train = nan(1,k);
-    best_mee_val   = nan(1,k);
-    best_mee_test  = nan(1,k);
+    best_mee_val = nan(1,k);
+    best_mee_test = nan(1,k);
     best_rmse_test = nan(1,k);
-    best_epoch     = nan(1,k);
+    best_epoch = nan(1,k);
     
-    model.weights_init  = struct([]);
+    model.weights_init = struct([]);
     model.weights_final = struct([]);
 
     rmse_test_curve_all = nan(maxEpochs,k);
-    mee_test_curve_all  = nan(maxEpochs,k);
+    mee_test_curve_all = nan(maxEpochs,k);
     
     training_start_time = posixtime(datetime('now'));
     
     %% ACTIVATION FUNCTION
-    leaky  = @(x) max(0.01 * x, x);
+    leaky = @(x) max(0.01 * x, x);
     dleaky = @(x) (x > 0) + 0.01 * (x <= 0);
     
     %% CROSS VALIDATION LOOP
@@ -68,34 +68,49 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         B_vl = B_rest(idx_vl,:);
         
         %% NORMALIZATION
-        muA = mean(A_tr); stdA = max(std(A_tr),1e-8);
-        muB = mean(B_tr); stdB = max(std(B_tr),1e-8);
+        muA = mean(A_tr); 
+        stdA = max(std(A_tr),1e-8);
+        muB = mean(B_tr); 
+        stdB = max(std(B_tr),1e-8);
         
         A_tr_norm = (A_tr - muA) ./ stdA;
         A_vl_norm = (A_vl - muA) ./ stdA;
         B_tr_norm = (B_tr - muB) ./ stdB;
         B_vl_norm = (B_vl - muB) ./ stdB;
 
-        model.norm(fold).muA  = muA;
+        model.norm(fold).muA = muA;
         model.norm(fold).stdA = stdA;
-        model.norm(fold).muB  = muB;
+        model.norm(fold).muB = muB;
         model.norm(fold).stdB = stdB;
         
         P_tr = size(A_tr,1);
         
         %% WEIGHTS INITIALIZATION
-        W1 = randn(numHidden1,N) * sqrt(2/N);                   b1 = zeros(numHidden1,1);
-        W2 = randn(numHidden2,numHidden1) * sqrt(2/numHidden1); b2 = zeros(numHidden2,1);
-        W3 = randn(M,numHidden2) * sqrt(2/numHidden2);          b3 = zeros(M,1);
+        W1 = randn(numHidden1,N) * sqrt(2/N);
+        W2 = randn(numHidden2,numHidden1) * sqrt(2/numHidden1);
+        W3 = randn(M,numHidden2) * sqrt(2/numHidden2);
+
+        b1 = zeros(numHidden1,1);
+        b2 = zeros(numHidden2,1);
+        b3 = zeros(M,1);
         
-        velocity_W1 = zeros(size(W1)); velocity_b1 = zeros(size(b1));
-        velocity_W2 = zeros(size(W2)); velocity_b2 = zeros(size(b2));
-        velocity_W3 = zeros(size(W3)); velocity_b3 = zeros(size(b3));
+        velocity_W1 = zeros(size(W1));
+        velocity_b1 = zeros(size(b1));
+
+        velocity_W2 = zeros(size(W2));
+        velocity_b2 = zeros(size(b2));
+
+        velocity_W3 = zeros(size(W3));
+        velocity_b3 = zeros(size(b3));
         
         %% SAVE INITIAL WEIGHTS
-        model.weights_init(fold).W1 = W1; model.weights_init(fold).b1 = b1;
-        model.weights_init(fold).W2 = W2; model.weights_init(fold).b2 = b2;
-        model.weights_init(fold).W3 = W3; model.weights_init(fold).b3 = b3;
+        model.weights_init(fold).W1 = W1;
+        model.weights_init(fold).W2 = W2;
+        model.weights_init(fold).W3 = W3;
+
+        model.weights_init(fold).b1 = b1;
+        model.weights_init(fold).b2 = b2;
+        model.weights_init(fold).b3 = b3;
         
         best_val = inf;
         no_improve = 0;
@@ -114,28 +129,42 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 B_b = B(idx,:);
                 P_b = size(A_b,1);
                 
-                Z1 = W1*A_b' + b1;    H1 = leaky(Z1);
-                Z2 = W2*H1   + b2;    H2 = leaky(Z2);
-                Yb = (W3*H2  + b3)';
+                H1 = W1 * A_b' + b1;
+                H2 = W2 * leaky(H1) + b2;
+                Yb = (W3 * leaky(H2) + b3)';
                 
                 % Error signals computation
-                E3 = (Yb - B_b)'; E2 = (W3'*E3).*dleaky(Z2); E1 = (W2'*E2).*dleaky(Z1);
+                E3 = (Yb - B_b)';
+                E2 = (W3' * E3) .* dleaky(H2);
+                E1 = (W2' * E2) .* dleaky(H1);
                 
                 % Gradients computation
-                dW3 = (E3*H2')/P_b + lambda*sign(W3);
-                dW2 = (E2*H1')/P_b + lambda*sign(W2);
-                dW1 = (E1*A_b)/P_b + lambda*sign(W1);
+                dW3 = (E3 * leaky(H2)') / P_b + lambda * sign(W3);
+                dW2 = (E2 * leaky(H1)') / P_b + lambda * sign(W2);
+                dW1 = (E1 * A_b) / P_b + lambda * sign(W1);
                 
-                db3 = mean(E3,2); db2 = mean(E2,2); db1 = mean(E1,2);
+                db3 = mean(E3,2);
+                db2 = mean(E2,2);
+                db1 = mean(E1,2);
                 
                 % Momentum velocities + weights update
-                velocity_W3 = alpha*velocity_W3 - eta*dW3; W3 = W3 + velocity_W3;
-                velocity_W2 = alpha*velocity_W2 - eta*dW2; W2 = W2 + velocity_W2;
-                velocity_W1 = alpha*velocity_W1 - eta*dW1; W1 = W1 + velocity_W1;
+                velocity_W3 = alpha * velocity_W3 - eta * dW3;
+                W3 = W3 + velocity_W3;
+
+                velocity_W2 = alpha * velocity_W2 - eta * dW2;
+                W2 = W2 + velocity_W2;
+
+                velocity_W1 = alpha * velocity_W1 - eta * dW1;
+                W1 = W1 + velocity_W1;
                 
-                velocity_b3 = alpha*velocity_b3 - eta*db3; b3 = b3 + velocity_b3;
-                velocity_b2 = alpha*velocity_b2 - eta*db2; b2 = b2 + velocity_b2;
-                velocity_b1 = alpha*velocity_b1 - eta*db1; b1 = b1 + velocity_b1;
+                velocity_b3 = alpha * velocity_b3 - eta * db3;
+                b3 = b3 + velocity_b3;
+
+                velocity_b2 = alpha * velocity_b2 - eta * db2;
+                b2 = b2 + velocity_b2;
+
+                velocity_b1 = alpha * velocity_b1 - eta * db1;
+                b1 = b1 + velocity_b1;
             end
             %% TRAINING ERRORS
             Ytr = (W3*leaky(W2*leaky(W1*A_tr_norm'+b1)+b2)+b3)';
@@ -162,13 +191,13 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
             mee_test(epoch,fold) = mean(sqrt(sum((B_test - Yt_den).^2,2)));
             
             %% EARLY STOPPING
-            if mee_val_norm(epoch,fold) < best_val*(1-tolerance)
+            if mee_val_norm(epoch,fold) < best_val * (1-tolerance)
                 best_val = mee_val_norm(epoch,fold);
-                best_mee_val(fold)   = mee_val(epoch,fold);
+                best_mee_val(fold) = mee_val(epoch,fold);
                 best_mee_train(fold) = mee_train(epoch,fold);
-                best_mee_test(fold)  = mee_test(epoch,fold);
+                best_mee_test(fold) = mee_test(epoch,fold);
                 best_rmse_test(fold) = rmse_test(epoch,fold);
-                best_epoch(fold)     = epoch;
+                best_epoch(fold) = epoch;
 
                 no_improve = 0;
             else
@@ -180,33 +209,37 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
             end
         end
         %% SAVE FINAL WEIGHTS
-        model.weights_final(fold).W1 = W1; model.weights_final(fold).b1 = b1;
-        model.weights_final(fold).W2 = W2; model.weights_final(fold).b2 = b2;
-        model.weights_final(fold).W3 = W3; model.weights_final(fold).b3 = b3;
+        model.weights_final(fold).W1 = W1;
+        model.weights_final(fold).W2 = W2;
+        model.weights_final(fold).W3 = W3;
+
+        model.weights_final(fold).b1 = b1;
+        model.weights_final(fold).b2 = b2;
+        model.weights_final(fold).b3 = b3;
         
         rmse_test_curve_all(:,fold) = rmse_test(:,fold);
         mee_test_curve_all(:,fold)  = mee_test(:,fold);
     end
     %% SAVE MODEL
     model.rmse_train_min = min(nanmean(rmse_train,2));
-    model.rmse_val_min   = min(nanmean(rmse_val,2));
+    model.rmse_val_min = min(nanmean(rmse_val,2));
     model.rmse_test_mean = mean(best_rmse_test,'omitnan');
     
     model.mee_train_curve = mee_train;
-    model.mee_val_curve   = mee_val;
-    model.mee_test_curve  = mee_test;
+    model.mee_val_curve = mee_val;
+    model.mee_test_curve = mee_test;
     
     model.best_mee_train_per_fold = best_mee_train;
-    model.best_mee_val_per_fold   = best_mee_val;
-    model.best_mee_test_per_fold  = best_mee_test;
+    model.best_mee_val_per_fold = best_mee_val;
+    model.best_mee_test_per_fold = best_mee_test;
     
     model.mee_train_mean = mean(best_mee_train,'omitnan');
-    model.mee_cv_mean    = mean(best_mee_val,'omitnan');
-    model.mee_test_mean  = mean(best_mee_test,'omitnan');
+    model.mee_cv_mean = mean(best_mee_val,'omitnan');
+    model.mee_test_mean = mean(best_mee_test,'omitnan');
     
-    model.eta        = eta;
-    model.alpha      = alpha;
-    model.lambda     = lambda;
+    model.eta = eta;
+    model.alpha = alpha;
+    model.lambda = lambda;
     model.batch_size = batch_size;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;

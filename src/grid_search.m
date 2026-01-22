@@ -190,12 +190,12 @@ end
 
 function [bestParams, bestScore] = grid_search_minibatch()
     % Grid Values
-    numHidden1_vals = [30 40 50 60];
-    numHidden2_vals = [30 40 50 60];
-    eta_vals        = [0.1 0.07 0.01 0.005 0.001 0.0005];
-    lambda_vals     = [0.01 0.005 0.001 0.0001 0.0005 0.00001];
-    alpha_vals      = [0.3 0.4 0.5 0.8 0.9];
-    mb_vals         = [8 16 20 500];
+    numHidden1_vals = [30];
+    numHidden2_vals = [20];
+    eta_vals        = [0.0001];
+    lambda_vals     = [0.001];
+    alpha_vals      = [0.9];
+    mb_vals         = [500];
     
     % Combinations
     combo = [];
