@@ -17,15 +17,15 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
     % lambda                                    % factor for L1 Regularization
 
     % Early Stopping
-    patience = 200;              
+    patience = 100;              
     tolerance = 0.001;                           % minimum of 1% progress in patience epochs
     maxEpochs = 10000;
     
     %% ===================================
     % K-FOLD CROSS-VALIDATION
     % ====================================
+
     k = 5;
-    cv = cvpartition(size(inputs_TR,1), 'KFold', k);
 
     input_layer_initial  = cell(1,k);
     hidden_layer1_initial = cell(1,k);
@@ -34,26 +34,48 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
 
     rmse_train = nan(maxEpochs, k);
     rmse_val   = nan(maxEpochs, k);
+    mee_train    = nan(maxEpochs, k);
     mee_val    = nan(maxEpochs, k);
-    last_val_rmse = nan(1,k);
+    rmse_test   = nan(maxEpochs, k);
+    mee_test    = nan(maxEpochs, k);
+    best_val_rmse = nan(1,k);
     best_val_mee = inf(1,k);
+    best_test_rmse = nan(1,k);
+    best_test_mee = inf(1,k);
 
     training_start_time = posixtime(datetime('now'));
 
+    cv_outer = cvpartition(size(inputs_TR,1), 'HoldOut', 0.2);
+
+    trainval_idx = training(cv_outer);
+    test_idx     = test(cv_outer);
+
+    A_trainval = inputs_TR(trainval_idx,:);
+    B_trainval = outputs_TR(trainval_idx,:);
+
+    A_test = inputs_TR(test_idx,:);
+    B_test = outputs_TR(test_idx,:);
+    P_test = size(A_test,1);
+
+    cv = cvpartition(size(A_trainval,1), 'KFold', k);
+
     for fold = 1:k
-        train_idx = training(cv,fold); 
-        validation_idx = test(cv,fold);      
-    
-        A_train = inputs_TR(train_idx, :);
-        A_validation = inputs_TR(validation_idx, :);    
-    
-        B_train = outputs_TR(train_idx, :);
-        B_validation = outputs_TR(validation_idx, :);
+        
+        train_idx = training(cv, fold);
+        val_idx   = test(cv, fold);
+
+        A_train = A_trainval(train_idx,:);
+        B_train = B_trainval(train_idx,:);
+
+        A_validation   = A_trainval(val_idx,:);
+        B_validation   = B_trainval(val_idx,:);
     
         P_train = size(A_train,1);
         P_val = size(A_validation,1);
 
+        best_train_mee(fold) = inf;
         best_val_mee(fold) = inf;
+        best_test_mee(fold) = inf;
         epochs_since_improvement = 0;
     
         mee_history = nan(1, maxEpochs);
@@ -92,8 +114,8 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
         %% ===================================
         % I/O NORMALIZATION (zero-mean / unit-variance)
         % ====================================
-        A_train_raw = inputs_TR(train_idx,:);
-        A_val_raw   = inputs_TR(validation_idx,:);
+        A_train_raw = A_trainval(train_idx,:);
+        A_val_raw   = A_trainval(val_idx,:);
 
         mu_A  = mean(A_train_raw,1);
         std_A = std(A_train_raw,0,1);
@@ -114,6 +136,7 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
         % ====================================
 
         epoch = 0;
+
         while epoch < maxEpochs
             epoch = epoch + 1;
         
@@ -146,13 +169,16 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
                 
                 outputs_denorm = outputs .* std_B + mu_B;
                 denorm_diff = B_train(p,:) - outputs_denorm;
+                Yhat_denorm  = Yhat .* std_B + mu_B;
+                denorm = B_train - Yhat_denorm ;
                 total_error = total_error + sqrt(sum(denorm_diff.^2));
+                mee_train(epoch, fold) = mean(sqrt(sum(denorm.^2,2))); 
                 %% BackPropagation phase
         
                 % Output signals
                 output_signals = zeros(1,M);
-                for k = 1:M
-                    output_signals(k) = (B_train_norm(p,k) - outputs(k));
+                for s = 1:M
+                    output_signals(s) = (B_train_norm(p,s) - outputs(s));
                 end
         
                 % Hidden layer 2 signals
@@ -178,10 +204,10 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
                 %% Gradients Accumulation
         
                 % Output layer
-                for k = 1:M
-                    grad_b_out(k) = grad_b_out(k) + output_signals(k);
+                for s = 1:M
+                    grad_b_out(s) = grad_b_out(s) + output_signals(s);
                     for j = 1:numHidden2
-                        grad_W_out(k,j) = grad_W_out(k,j) + output_signals(k) * hidden_layer2(j).output;
+                        grad_W_out(s,j) = grad_W_out(s,j) + output_signals(s) * hidden_layer2(j).output;
                     end
                 end
         
@@ -225,7 +251,11 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
 
             err_val = B_val_norm - Yval;
             rmse_val(epoch, fold) = sqrt(mean(err_val(:).^2));
-            last_val_rmse(fold) = rmse_val(epoch, fold);
+            if epoch == 1
+                best_val_rmse(fold) = rmse_val(epoch, fold);
+            elseif rmse_val(epoch, fold) < best_val_rmse(fold)
+                best_val_rmse(fold) = rmse_val(epoch, fold);
+            end
 
             Yval_denorm = Yval .* std_B + mu_B;
             diff_val = B_validation - Yval_denorm;
@@ -239,15 +269,61 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
             fprintf('Epoch %d | RMSE (original scale) = %.6f\n', epoch, rmse_denorm_epoch);
             %% Weights Update
             
-            loss =  mean((B_train_norm - Yhat).^2, 'all');
+            mse_loss =  mean((B_train_norm - Yhat).^2, 'all');
+
+            L1 = 0;
+
+            for j = 1:numHidden1
+                for i = 1:N
+                    L1 = L1 + abs(hidden_layer1(j).input_connections(i).weight);
+                end
+            end
+            
+            for j = 1:numHidden2
+                for i = 1:numHidden1
+                    L1 = L1 + abs(hidden_layer2(j).input_connections(i).weight);
+                end
+            end
+            
+            for s = 1:M
+                for j = 1:numHidden2
+                    L1 = L1 + abs(output_layer(s).input_connections(j).weight);
+                end
+            end
+
+            W_h1 = zeros(numHidden1, N);
+            for j = 1:numHidden1
+                for i = 1:N
+                    W_h1(j,i) = hidden_layer1(j).input_connections(i).weight;
+                end
+            end
+
+            W_h2 = zeros(numHidden2, numHidden1);
+            for j = 1:numHidden2
+                for i = 1:numHidden1
+                    W_h2(j,i) = hidden_layer2(j).input_connections(i).weight;
+                end
+            end
+
+            W_out = zeros(M, numHidden2);
+            for j = 1:M
+                for i = 1:numHidden2
+                    W_out(j,i) = output_layer(j).input_connections(i).weight;
+                end
+            end
+
+            num_weights = numel(W_h1) + numel(W_h2) + numel(W_out);
+            loss = mse_loss + lambda * (L1 / num_weights);
+
             g = [
-                grad_W_h1(:);
+                grad_W_h1(:) + lambda * sign(W_h1(:));
                 grad_b_h1(:);
-                grad_W_h2(:);
+                grad_W_h2(:) + lambda * sign(W_h2(:));
                 grad_b_h2(:);
-                grad_W_out(:);
+                grad_W_out(:) + lambda * sign(W_out(:));
                 grad_b_out(:)
-            ] / P_train; %metto i gradienti in un unico vettore
+            ] / P_train;
+
     
             if epoch == 1
                 gamma = 1;
@@ -258,33 +334,32 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
                 r = 0;
             else
                 num = dot(d_prev, d_prev - g);
-                den = norm(g - d_prev)^2 + 1e-8; % 1e-8 agisce da smorzatore
+                den = norm(g - d_prev)^2 + 1e-8; 
                 gamma_star = num / den;
-                gamma = min(1, max(0.0, gamma_star));
-                fprintf('GammaStar: %f ', gamma_star)
+                if ~isfinite(num) || ~isfinite(den)
+                    gamma = 0;
+                else
+                    gamma = min(1, max(0, gamma_star));
+                    %fprintf('GammaStar: %f ', gamma_star)
+                end
 
                 if loss > f_best && alpha_prev > 0
                     gammaRestriction = (alpha_prev * norm(d_prev)^2) / ...
                     ((loss - f_best) + (alpha_prev * norm(d_prev)^2) + 1e-12);
-                    gamma = min(gamma, max(0, gammaRestriction));
+                    gamma = min(gamma, max(0, gammaRestriction));     
                 end
+
             end
     
             d_vec = gamma * g + (1 - gamma) * d_prev;
-            d = norm(d_vec)^2;
+            d = (norm(d_vec)^2);
     
             numeratore = max(0, loss - (f_ref - delta));
-            % if numeratore == 0
-            %     f_ref = loss;        
-            %     r = 0;
-            % end
+
             epsilon = 1e-8;
-            alpha = beta * (numeratore) / (d + epsilon); %epsilon permette di evitare divisione per 0
-            alpha = max(alpha, 1e-3);
+            alpha = beta * numeratore / (d + epsilon);
+            %alpha = max(alpha, 1e-4);
             alpha = min(alpha, 0.5);
-            if ~isfinite(alpha)
-                alpha = 1e-3;
-            end
         
             if(loss <= f_ref-delta/2) %significa che si è arrivati vicini al valore ottimo stimato quindi si migliora
                 f_ref = f_best;
@@ -296,8 +371,9 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
                 r = r + alpha * sqrt(d); %aggiorno con la distanza percorsa a questa iterazione
             end
             f_best = min(f_best,  loss);
+            d_prev = d_vec;
             alpha_prev = alpha;
-            fprintf('Loss: %f | Alpha: %.8f | Gamma: %.8f | f_best: %.8f | r:%f | R:%f\n', loss, alpha, gamma, f_best, r, R);
+            fprintf('Loss: %f | Alpha: %.8f | Gamma: %.8f | f_best: %.8f | r:%f | R:%f | d:%f\n', loss, alpha, gamma, f_best, r, R, d);
     
             % Calcola gli indici di slicing
             idx1 = 1 : numHidden1*N;                   
@@ -321,7 +397,7 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
                 for i = 1:N
                     hidden_layer1(j).input_connections(i).weight = ...
                         hidden_layer1(j).input_connections(i).weight + ...
-                            alpha * (d_W_h1(j,i) - lambda * sign(hidden_layer1(j).input_connections(i).weight));
+                            alpha * (d_W_h1(j,i));
                 end
             end
         
@@ -331,17 +407,17 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
                 for i = 1:numHidden1
                     hidden_layer2(j).input_connections(i).weight = ...
                         hidden_layer2(j).input_connections(i).weight  ...
-                            + alpha *  (d_W_h2(j,i) -lambda * sign(hidden_layer2(j).input_connections(i).weight));
+                            + alpha *  (d_W_h2(j,i));
                 end
             end
         
             % Hidden2 -> Output
-            for k = 1:M
-                output_layer(k).bias_weight = output_layer(k).bias_weight + alpha * d_b_out(k);
+            for s = 1:M
+                output_layer(s).bias_weight = output_layer(s).bias_weight + alpha * d_b_out(s);
                 for j = 1:numHidden2
-                    output_layer(k).input_connections(j).weight = ...
-                        output_layer(k).input_connections(j).weight + ...
-                            alpha * (d_W_out(k,j) - lambda * sign(output_layer(k).input_connections(j).weight));
+                    output_layer(s).input_connections(j).weight = ...
+                        output_layer(s).input_connections(j).weight + ...
+                            alpha * (d_W_out(s,j));
                 end
             end
         
@@ -353,41 +429,95 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
         
             % Compute Mean Euclidian Error over an epoch
             mee_history(epoch) = total_error / P_train;
-            fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f\n', epoch, rmse_history(epoch), mee_history(epoch));
-            disp(rmse_per_output);
+            %fprintf('Epoch %d | RMSE (norm) = %.6f | MEE (og scale) = %.6f\n', epoch, rmse_history(epoch), mee_history(epoch));
+            %disp(rmse_per_output);
     
             % Early Stopping based on MEE (og scale)
             if mee_val(epoch, fold) < best_val_mee(fold) * (1 - tolerance)
                 best_val_mee(fold) = mee_val(epoch, fold);
                 epochs_since_improvement = 0;
+                input_layer_final{fold}  = input_layer;
+                hidden_layer1_final{fold} = hidden_layer1;
+                hidden_layer2_final{fold} = hidden_layer2;
+                output_layer_final{fold}  = output_layer;
             else
                 epochs_since_improvement = epochs_since_improvement + 1;
             end
 
             if epochs_since_improvement >= patience
-                fprintf("EARLY STOP at epoch %d | Best MEE = %.6f\n", epoch, best_val_mee(fold));
+                fprintf("EARLY STOP at epoch %d  | RMSE (norm) = %.6f | Best MEE = %.6f\n", epoch, best_val_rmse(fold), best_val_mee(fold));
                 break;
             end
-            d_prev = d_vec;
+
+            % Normalizzazione test set (stesso mu e std del training)
+            A_test_norm = (A_test - mu_A) ./ std_A;
+            B_test_norm   = (B_test - mu_B) ./ std_B;
+            
+            Ytest = zeros(P_test, M);
+            
+            for p = 1:P_test
+                % Feedforward
+                for i = 1:N
+                    input_layer(i).output = A_test_norm(p,i);
+                end
+                for i = 1:numHidden1
+                    hidden_layer1(i).compute();
+                end
+                for i = 1:numHidden2
+                    hidden_layer2(i).compute();
+                end
+                outputs = zeros(1,M);
+                for i = 1:M
+                    output_layer(i).compute();
+                    outputs(i) = output_layer(i).output;
+                    Ytest(p,:) = outputs;
+                end
+            end
+            err_test = B_test_norm - Ytest;
+            rmse_test(epoch, fold) = sqrt(mean(err_test(:).^2));
+            
+            % Denormalizzazione
+            Ytest_denorm = Ytest .* std_B + mu_B;
+            
+            % Errori test
+            err_test_denorm = B_test - Ytest_denorm;
+            mee_test(epoch, fold)  = mean(sqrt(sum(err_test_denorm.^2, 2)));
+            if epoch == 1
+                best_test_rmse(fold) = rmse_test(epoch, fold);
+            elseif rmse_test(epoch, fold) < best_test_rmse(fold)
+                best_test_rmse(fold) = rmse_test(epoch, fold);
+            end
+
+            if mee_test(epoch, fold) < best_test_mee(fold)
+                best_test_mee(fold) = mee_test(epoch, fold);
+            end
+            
+            if mee_train(epoch, fold) < best_train_mee(fold)
+                best_train_mee(fold) = mee_train(epoch, fold);
+            end
         end
-        input_layer_final{fold}  = input_layer;
-        hidden_layer1_final{fold} = hidden_layer1;
-        hidden_layer2_final{fold} = hidden_layer2;
-        output_layer_final{fold}  = output_layer;
     end
 
     training_end_time = posixtime(datetime('now'));
 
     % Saving model's data
-    model.rmse_min = min(nanmean(rmse_train,2));
-    model.rmse_final = nanmean(rmse_train(end,:));
-    model.rmse_validation = nanmean(last_val_rmse);
-    model.mee_min = min(nanmean(mee_val,2));
-    model.mee_final = nanmean(mee_val(end,:));
+    model.rmse_train = min(nanmean(rmse_train,2));
+    model.mee_train = mean(best_train_mee,  'omitnan');
+    model.rmse_validation = mean(best_val_rmse, 'omitnan');
+    model.mee_validation = mean(best_val_mee,  'omitnan');
+    model.rmse_test = mean(best_test_rmse, 'omitnan');
+    model.mee_test = mean(best_test_mee,  'omitnan');
 
     model.lambda = lambda;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
+    model.beta = beta;
+    model.delta = delta_multiplicator;
+    model.R = R;
+    model.rho = rho;
+    model.k = k;
+    model.early_stopping.patience = patience;
+    model.early_stopping.tolerance = tolerance;
 
     model.input_layer_initial = input_layer_initial;
     model.hidden_layer1_initial = hidden_layer1_initial;
@@ -413,12 +543,14 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
     % Plotting and saving the learning curve
     % mean_train_curve = nanmean(rmse_train,2);
     % mean_val_curve   = nanmean(rmse_val,2);
+    % mean_test_curve   = nanmean(rmse_test,2);
 
     epochs_per_fold = sum(~isnan(rmse_train),1);
     max_common_epoch = min(epochs_per_fold);
 
     mean_train_curve = mean(rmse_train(1:max_common_epoch,:), 2, 'omitnan');
     mean_val_curve   = mean(rmse_val(1:max_common_epoch,:),   2, 'omitnan');
+    mean_test_curve = mean(rmse_test(1:max_common_epoch,:), 2, 'omitnan');
 
     % max_trained_epoch = max(sum(~isnan(rmse_train),1));
 
@@ -426,38 +558,45 @@ function score = Neural_Network_batch_deflectionRestrictedSGPTL(numHidden1, numH
     plot_file = fullfile('models/SGPTL', [name '_plot.png']);
     
     fig = figure('Visible','off');
-    plot(1:max_common_epoch, mean_train_curve(1:max_common_epoch), 'b', 'LineWidth', 2); hold on;
-    plot(1:max_common_epoch, mean_val_curve(1:max_common_epoch), 'r', 'LineWidth', 2);
+    h1 = plot(1:max_common_epoch, mean_train_curve(1:max_common_epoch), 'b', 'LineWidth', 2); hold on;
+    h2 = plot(1:max_common_epoch, mean_val_curve(1:max_common_epoch), 'r', 'LineWidth', 2);
+    h3 = plot(1:max_common_epoch, mean_test_curve(1:max_common_epoch), 'g', 'LineWidth', 2); 
     xlabel('Epoch'); ylabel('RMSE');
     title(sprintf('Learning Curve |  h1 = %d; h2 = %d; lambda = %g; beta: %g; deltaMul: %g; R: %g; rho: %g; Batch', ...
         numHidden1, numHidden2, lambda, beta, delta_multiplicator, R, rho));
     grid on;
+    legend([h1 h2 h3], {'Train', 'Validation', 'Test'}, 'Location', 'best', 'FontSize',18);
     
     exportgraphics(fig, plot_file);
     close(fig);
 
     score =  mean(best_val_mee); 
-%%
-    function hidden_conns = generate_hidden_conns_from(input_units)
-        % Kaiming Initialization
-        fan_in = numel(input_units);
-        kaiming = sqrt(2 / fan_in);
 
-        hidden_conns(1, fan_in) = struct('neuron',[],'weight',[]);
-        for n = 1:fan_in
-            hidden_conns(n).neuron = input_units(n);
-            hidden_conns(n).weight = randn * kaiming;
-        end
-    end
+    %%
+        function hidden_conns = generate_hidden_conns_from(input_units)
+            % Kaiming Initialization
+            fan_in = numel(input_units);
+            kaiming = sqrt(2 / fan_in);
     
-    function output_conns = generate_output_conns_from(hidden_units)
-        % Kaiming Initialization
-        fan_in = numel(hidden_units);
-
-        output_conns(1, fan_in) = struct('neuron',[],'weight',[]);
-        for n = 1:fan_in
-            output_conns(n).neuron = hidden_units(n);
-            output_conns(n).weight = randn * 0.01;
+            hidden_conns(1, fan_in) = struct('neuron',[],'weight',[]);
+            for n = 1:fan_in
+                hidden_conns(n).neuron = input_units(n);
+                hidden_conns(n).weight = randn * kaiming;
+            end
+        end
+        
+        function output_conns = generate_output_conns_from(hidden_units)
+            fan_in = numel(hidden_units);
+            fan_out = 4; % Numero di output (M)
+            
+            % Deviazione standard Xavier per layer lineare
+            xavier_std = sqrt(2 / (fan_in + fan_out)); 
+        
+            output_conns(1, fan_in) = struct('neuron',[],'weight',[]);
+            for n = 1:fan_in
+                output_conns(n).neuron = hidden_units(n);
+                % randn garantisce pesi distribuiti intorno allo zero con la giusta varianza
+                output_conns(n).weight = randn * xavier_std; 
+            end
         end
     end
-end
