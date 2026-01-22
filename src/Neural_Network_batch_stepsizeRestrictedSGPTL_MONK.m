@@ -10,7 +10,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
     'ReadVariableNames',false, ...
     'TextType','string');
 
-    % rimuove colonne vuote
     Dataset_TR(:, all(ismissing(Dataset_TR),1)) = [];
     
     X  = Dataset_TR{:, 2:7};
@@ -32,7 +31,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
     N = size(inputs_TR, 2);                     
     M = 1;
 
-    %% Carico test set
+    %% Test set
     Dataset_TS = readtable('../monk/monks-2.test', ...
     'FileType','text', ...
     'Delimiter',' ', ...
@@ -52,9 +51,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
     end
 
     P_test = size(X_oh_test,1);
-    
-    % Early Stopping
-    %patience = 300;                                       
+                                          
     maxEpochs = 2500;
     
     %% ===================================
@@ -65,7 +62,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
 
     input_layer_initial  = cell(1,k);
     hidden_layer1_initial = cell(1,k);
-    % hidden_layer2_initial = cell(1,k);
     output_layer_initial  = cell(1,k);
 
     acc_val = nan(maxEpochs, k);
@@ -91,7 +87,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
         P_val = size(A_validation,1);
 
         best_val_acc(fold) = 0;
-        %epochs_since_improvement = 0;
 
         %% ===================================
         % NEURAL NETWORK CONFIGURATION (fully connected)
@@ -106,11 +101,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
         for i = 1:numHidden1
             hidden_layer1(i) = neuron_hidden_unit_tahn(generate_hidden_conns_from(input_layer, numHidden1));
         end
-        
-        % Hidden Layer 2
-        % for i = 1:numHidden2
-        %     hidden_layer2(i) = neuron_hidden_unit_tahn(generate_hidden_conns_from(hidden_layer1, numHidden2));
-        % end
         
         % Output Layer
         for i = 1:M
@@ -139,7 +129,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
     
             % Gradient Accumulators
             grad_W_h1 = zeros(numHidden1, N); grad_b_h1 = zeros(1,numHidden1);
-            %grad_W_h2 = zeros(numHidden2, numHidden1); grad_b_h2 = zeros(1,numHidden2);
             grad_W_out = zeros(M,numHidden1); grad_b_out = zeros(1,M);
 
             % Loop over all patterns
@@ -151,9 +140,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
                 for i = 1:numHidden1
                     hidden_layer1(i).compute();
                 end
-                % for i = 1:numHidden2
-                %     hidden_layer2(i).compute();
-                % end
                 outputs = zeros(1,M);
                 for i = 1:M
                     output_layer(i).compute();
@@ -168,16 +154,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
                 for s = 1:M
                     output_signals(s) = (B_train(p,s) - outputs(s));
                 end
-        
-                % Hidden layer 2 signals
-                % hidden2_signals = zeros(1, numHidden2);
-                % for j = 1:numHidden2
-                %     summation = 0;
-                %     for k = 1:M
-                %         summation = summation + output_signals(k) * output_layer(k).input_connections(j).weight;
-                %     end
-                %     hidden2_signals(j) = summation * hidden_layer2(j).activation_derivative(hidden_layer2(j).net);
-                % end
         
                 % Hidden layer 1 signals
                 hidden1_signals = zeros(1,numHidden1);
@@ -199,14 +175,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
                         grad_W_out(s,j) = grad_W_out(s,j) + output_signals(s) * hidden_layer1(j).output;
                     end
                 end
-        
-                % Hidden layer 2
-                % for j = 1:numHidden2
-                %     grad_b_h2(j) = grad_b_h2(j) + hidden2_signals(j);
-                %     for i = 1:numHidden1
-                %         grad_W_h2(j,i) = grad_W_h2(j,i) + hidden2_signals(j) * hidden_layer1(i).output;
-                %     end
-                % end
         
                 % Hidden layer 1
                 for j = 1:numHidden1
@@ -257,7 +225,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
             
             mse_test(epoch, fold)   = mean((Y_test - Yhat_test).^2,'all');
 
-            %% Calcolo dell'accuracy
+            %% Accuracy
             Yhat_bin = Yhat > 0.5;
             acc_train(epoch, fold) = mean(Yhat_bin == B_train);
             Yval_bin = Yval > 0.5;
@@ -329,35 +297,30 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
             epsilon = 1e-8;
             beta_eff = min(beta, gamma);
             alpha = beta_eff * numeratore / (d + epsilon);
-            %alpha = max(alpha, 1e-4);
+            alpha = max(alpha, 1e-6);
             alpha = min(alpha, 0.1);
         
-            if(loss <= f_ref-delta/2) %significa che si è arrivati vicini al valore ottimo stimato quindi si migliora
+            if(loss <= f_ref-delta/2) 
                 f_ref = f_best;
                 r = 0;
-            elseif(r > R) %significa che mi sono mosso troppo senza miglioramenti significativi
-                delta = delta * rho; %aggiorno delta con il fattore rho 0<rho<1 per cercare valori meno ambiziosi
+            elseif(r > R)
+                delta = delta * rho;
                 r = 0;
             else
-                r = r + alpha * sqrt(d); %aggiorno con la distanza percorsa a questa iterazione
+                r = r + alpha * sqrt(d); 
             end
             f_best = min(f_best,  loss);
             d_prev = d_vec;
             fprintf('Loss: %f | Alpha: %.8f | Gamma: %.8f | f_best: %.8f | r:%f | R:%f\n', mse_val(epoch,fold), alpha, gamma, f_best, r, R);
     
-            % Calcola gli indici di slicing
             idx1 = 1 : numHidden1*N;                   
             idx2 = idx1(end)+1 : idx1(end)+numHidden1; 
-            % idx3 = idx2(end)+1 : idx2(end)+numHidden2*numHidden1; 
-            % idx4 = idx3(end)+1 : idx3(end)+numHidden2; 
             idx5 = idx2(end)+1 : idx2(end)+M*numHidden1;         
             idx6 = idx5(end)+1 : idx5(end)+M;
     
-            % Estrai le porzioni da d_vec
             d_W_h1   = reshape(d_vec(idx1), numHidden1, N);
             d_b_h1   = reshape(d_vec(idx2), numHidden1, 1);
-            % d_W_h2   = reshape(d_vec(idx3), numHidden2, numHidden1);
-            % d_b_h2   = reshape(d_vec(idx4), numHidden2, 1);
+
             d_W_out  = reshape(d_vec(idx5), M, numHidden1);
             d_b_out  = reshape(d_vec(idx6), M, 1);
     
@@ -371,16 +334,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
                 end
             end
         
-            % Hidden1 -> Hidden2
-            % for j = 1:numHidden2
-            %     hidden_layer2(j).bias_weight = hidden_layer2(j).bias_weight + alpha * d_b_h2(j);
-            %     for i = 1:numHidden1
-            %         hidden_layer2(j).input_connections(i).weight = ...
-            %             hidden_layer2(j).input_connections(i).weight  ...
-            %                 + alpha *  (d_W_h2(j,i) -lambda * sign(hidden_layer2(j).input_connections(i).weight));
-            %     end
-            % end
-        
             % Hidden1 -> Output
             for s = 1:M
                 output_layer(s).bias_weight = output_layer(s).bias_weight + alpha * d_b_out(s);
@@ -391,17 +344,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL_MONK(numHidden1, l
                 end
             end
          
-            % Compute Mean Euclidian Error over an epoch
-            fprintf('Epoch %d | Vaidation accuracy = %.6f | Train accuracy = %.6f | best_mse : %.6f\n', epoch, acc_val(epoch, fold), acc_train(epoch, fold), best_val_acc(fold));
-    
-            % Early Stopping based on validation accuracy 
-            % if acc_val(epoch, fold) > best_val_acc(fold)
-            %     best_val_acc(fold) = acc_val(epoch, fold);
-            %     epochs_since_improvement = 0;
-            % else
-            %     epochs_since_improvement = epochs_since_improvement + 1;
-            % end
-            % 
             if acc_val(epoch,fold) > best_val_acc(fold)
                 best_val_acc(fold) = acc_val(epoch,fold);
             

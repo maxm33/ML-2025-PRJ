@@ -18,7 +18,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
 
     % Early Stopping
     patience = 100;              
-    tolerance = 0.001;                           % minimum of 1% progress in patience epochs
+    tolerance = 0.001;                           % minimum of 0.1% progress in patience epochs
     maxEpochs = 10000;
     
     %% ===================================
@@ -43,6 +43,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     best_val_mee = inf(1,k);
     best_test_rmse = nan(1,k);
     best_test_mee = inf(1,k);
+    final_epoch = inf(1,k);
 
     training_start_time = posixtime(datetime('now'));
 
@@ -77,6 +78,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
         best_train_mee(fold) = inf;
         best_val_mee(fold) = inf;
         best_test_mee(fold) = inf;
+        final_epoch(fold) = 0;
         epochs_since_improvement = 0;
     
         mee_history = nan(1, maxEpochs);
@@ -341,7 +343,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
                     gamma = 0;
                 else
                     gamma = min(1, max(0.1, gamma_star));
-                    %fprintf('GammaStar: %f ', gamma_star)
                 end
             end
     
@@ -353,23 +354,21 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             epsilon = 1e-8;
             beta_eff = min(beta, gamma);
             alpha = beta_eff * numeratore / (d + epsilon);
-            %alpha = max(alpha, 1e-4);
+            alpha = max(alpha, 1e-6);
             alpha = min(alpha, 0.2);
         
-            if(loss <= f_ref-delta/2) %significa che si è arrivati vicini al valore ottimo stimato quindi si migliora
+            if(loss <= f_ref-delta/2) 
                 f_ref = f_best;
                 r = 0;
-            elseif(r > R) %significa che mi sono mosso troppo senza miglioramenti significativi
-                delta = delta * rho; %aggiorno delta con il fattore rho 0<rho<1 per cercare valori meno ambiziosi
+            elseif(r > R) 
+                delta = delta * rho;
                 r = 0;
             else
-                r = r + alpha * sqrt(d); %aggiorno con la distanza percorsa a questa iterazione
+                r = r + alpha * sqrt(d); 
             end
             f_best = min(f_best,  loss);
             d_prev = d_vec;
-            fprintf('Loss: %f | Alpha: %.8f | Gamma: %.8f | f_best: %.8f | r:%f | R:%f | d:%f\n', loss, alpha, gamma, f_best, r, R, d);
-    
-            % Calcola gli indici di slicing
+
             idx1 = 1 : numHidden1*N;                   
             idx2 = idx1(end)+1 : idx1(end)+numHidden1; 
             idx3 = idx2(end)+1 : idx2(end)+numHidden2*numHidden1; 
@@ -377,7 +376,6 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             idx5 = idx4(end)+1 : idx4(end)+M*numHidden2;         
             idx6 = idx5(end)+1 : idx5(end)+M;
     
-            % Estrai le porzioni da d_vec
             d_W_h1   = reshape(d_vec(idx1), numHidden1, N);
             d_b_h1   = reshape(d_vec(idx2), numHidden1, 1);
             d_W_h2   = reshape(d_vec(idx3), numHidden2, numHidden1);
@@ -439,11 +437,11 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             end
 
             if epochs_since_improvement >= patience
+                final_epoch(fold)= epoch;
                 fprintf("EARLY STOP at epoch %d  | RMSE (norm) = %.6f | Best MEE = %.6f\n", epoch, best_val_rmse(fold), best_val_mee(fold));
                 break;
             end
 
-            % Normalizzazione test set (stesso mu e std del training)
             A_test_norm = (A_test - mu_A) ./ std_A;
             B_test_norm   = (B_test - mu_B) ./ std_B;
             
@@ -470,10 +468,9 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
             err_test = B_test_norm - Ytest;
             rmse_test(epoch, fold) = sqrt(mean(err_test(:).^2));
             
-            % Denormalizzazione
             Ytest_denorm = Ytest .* std_B + mu_B;
             
-            % Errori test
+            % Error test
             err_test_denorm = B_test - Ytest_denorm;
             mee_test(epoch, fold)  = mean(sqrt(sum(err_test_denorm.^2, 2)));
             if epoch == 1
@@ -496,12 +493,11 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
 
     % Saving model's data
     model.rmse_train = min(nanmean(rmse_train,2));
-    model.mee_train = mean(best_train_mee,  'omitnan');
-    model.mee_validation = mean(best_val_mee,  'omitnan');
+    model.mee_train = best_train_mee;
+    model.mee_validation = best_val_mee;
     model.rmse_validation = mean(best_val_rmse, 'omitnan');
-    model.mee_validation = mean(best_val_mee,  'omitnan');
     model.rmse_test = mean(best_test_rmse, 'omitnan');
-    model.mee_test = mean(best_test_mee,  'omitnan');
+    model.mee_test = best_test_mee;
 
     model.lambda = lambda;
     model.numHidden1 = numHidden1;
@@ -513,6 +509,7 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
     model.k = k;
     model.early_stopping.patience = patience;
     model.early_stopping.tolerance = tolerance;
+    model.final_epoch = final_epoch;
 
     model.input_layer_initial = input_layer_initial;
     model.hidden_layer1_initial = hidden_layer1_initial;
@@ -582,15 +579,13 @@ function score = Neural_Network_batch_stepsizeRestrictedSGPTL(numHidden1, numHid
         
         function output_conns = generate_output_conns_from(hidden_units)
             fan_in = numel(hidden_units);
-            fan_out = 4; % Numero di output (M)
-            
-            % Deviazione standard Xavier per layer lineare
+            fan_out = 4; 
+
             xavier_std = sqrt(2 / (fan_in + fan_out)); 
         
             output_conns(1, fan_in) = struct('neuron',[],'weight',[]);
             for n = 1:fan_in
                 output_conns(n).neuron = hidden_units(n);
-                % randn garantisce pesi distribuiti intorno allo zero con la giusta varianza
                 output_conns(n).weight = randn * xavier_std; 
             end
         end
