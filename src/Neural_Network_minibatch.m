@@ -1,5 +1,5 @@
 function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, alpha, batch_size)
-    %% LOADING DATA
+    %% LOADING TRAINING DATA
     Dataset = readtable('../data/TR/ML-CUP25-TR.csv');
     
     inputs_raw = Dataset{:,2:13};
@@ -25,7 +25,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     A_rest = inputs_raw(idx_rest,:);
     B_rest = outputs_raw(idx_rest,:);
     
-    %% K-FOLD CROSS VALIDATION
+    %% K-FOLD CROSS-VALIDATION
     k = 5;
     cv = cvpartition(sum(idx_rest),'KFold',k);
     
@@ -52,11 +52,11 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     
     training_start_time = posixtime(datetime('now'));
     
-    %% ACTIVATION FUNCTION
+    %% ACTIVATION FUNCTION (LEAKY RELU)
     leaky = @(x) max(0.01 * x, x);
     dleaky = @(x) (x > 0) + 0.01 * (x <= 0);
     
-    %% CROSS VALIDATION LOOP
+    %% CROSS-VALIDATION LOOP
     for fold = 1:k
         idx_tr = training(cv,fold);
         idx_vl = test(cv,fold);
@@ -78,6 +78,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         B_tr_norm = (B_tr - muB) ./ stdB;
         B_vl_norm = (B_vl - muB) ./ stdB;
 
+        % Save normalization parameters for replicability
         model.norm(fold).muA = muA;
         model.norm(fold).stdA = stdA;
         model.norm(fold).muB = muB;
@@ -85,7 +86,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         
         P_tr = size(A_tr,1);
         
-        %% WEIGHTS INITIALIZATION
+        %% HE-KAIMING WEIGHTS INITIALIZATION
         W1 = randn(numHidden1,N) * sqrt(2/N);
         W2 = randn(numHidden2,numHidden1) * sqrt(2/numHidden1);
         W3 = randn(M,numHidden2) * sqrt(2/numHidden2);
@@ -129,20 +130,22 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 B_b = B(idx,:);
                 P_b = size(A_b,1);
                 
-                H1 = W1 * A_b' + b1;
-                H2 = W2 * leaky(H1) + b2;
-                Yb = (W3 * leaky(H2) + b3)';
+                % Forward pass
+                H1 = W1 * A_b' + b1;            % compute net of first hidden layer 
+                H2 = W2 * leaky(H1) + b2;       % activation of net and compute net of second hidden layer
+                Yb = (W3 * leaky(H2) + b3)';    % compute output
                 
-                % Error signals computation
-                E3 = (Yb - B_b)';
-                E2 = (W3' * E3) .* dleaky(H2);
-                E1 = (W2' * E2) .* dleaky(H1);
+                % Backward pass
+                E3 = (Yb - B_b)';               % output layer error
+                E2 = (W3' * E3) .* dleaky(H2);  % second hidden layer error
+                E1 = (W2' * E2) .* dleaky(H1);  % first hidden layer error
                 
                 % Gradients computation
                 dW3 = (E3 * leaky(H2)') / P_b + lambda * sign(W3);
                 dW2 = (E2 * leaky(H1)') / P_b + lambda * sign(W2);
                 dW1 = (E1 * A_b) / P_b + lambda * sign(W1);
                 
+                % Error contribution averaged over the batch size for the bias
                 db3 = mean(E3,2);
                 db2 = mean(E2,2);
                 db1 = mean(E1,2);
@@ -167,13 +170,13 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 b1 = b1 + velocity_b1;
             end
             %% TRAINING ERRORS
-            Ytr = (W3*leaky(W2*leaky(W1*A_tr_norm'+b1)+b2)+b3)';
+            Ytr = (W3*leaky(W2*leaky(W1*A_tr_norm'+b1)+b2)+b3)';    % forward pass on training set after weight update
             rmse_train(epoch,fold) = sqrt(mean((Ytr - B_tr_norm).^2,'all'));
             Ytr_den = Ytr .* stdB + muB;
             mee_train(epoch,fold) = mean(sqrt(sum((B_tr - Ytr_den).^2,2)));
             
             %% VALIDATION ERRORS
-            Yv = (W3*leaky(W2*leaky(W1*A_vl_norm'+b1)+b2)+b3)';
+            Yv = (W3*leaky(W2*leaky(W1*A_vl_norm'+b1)+b2)+b3)';     % forward pass on validation set after weight update
             rmse_val(epoch,fold) = sqrt(mean((Yv - B_vl_norm).^2,'all'));
             Yv_den = Yv .* stdB + muB;
             mee_val(epoch,fold) = mean(sqrt(sum((B_vl - Yv_den).^2,2)));
@@ -185,12 +188,12 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
             A_test_norm = (A_test - muA) ./ stdA;
             B_test_norm = (B_test - muB) ./ stdB;
 
-            Yt = (W3*leaky(W2*leaky(W1*A_test_norm'+b1)+b2)+b3)';
+            Yt = (W3*leaky(W2*leaky(W1*A_test_norm'+b1)+b2)+b3)';   % forward pass on test set after weight update
             rmse_test(epoch,fold) = sqrt(mean((Yt - B_test_norm).^2,'all'));
             Yt_den = Yt .* stdB + muB;
             mee_test(epoch,fold) = mean(sqrt(sum((B_test - Yt_den).^2,2)));
             
-            %% EARLY STOPPING
+            %% EARLY STOPPING (has to improve of 1% wrt the best MEE VL in the last patience epochs)
             if mee_val_norm(epoch,fold) < best_val * (1-tolerance)
                 best_val = mee_val_norm(epoch,fold);
                 best_mee_val(fold) = mee_val(epoch,fold);
@@ -218,9 +221,9 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         model.weights_final(fold).b3 = b3;
         
         rmse_test_curve_all(:,fold) = rmse_test(:,fold);
-        mee_test_curve_all(:,fold)  = mee_test(:,fold);
+        mee_test_curve_all(:,fold) = mee_test(:,fold);
     end
-    %% SAVE MODEL
+    %% SAVE REST OF MODEL'S DATA
     model.rmse_train_min = min(nanmean(rmse_train,2));
     model.rmse_val_min = min(nanmean(rmse_val,2));
     model.rmse_test_mean = mean(best_rmse_test,'omitnan');
@@ -251,7 +254,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         numHidden1,numHidden2,eta,lambda,alpha,batch_size,randi(1e6));
     save(filename,'model');
     
-    %% SAVE LEARNING CURVE PLOTS
+    %% PLOT AND SAVE LEARNING CURVES
     mean_tr = nanmean(rmse_train,2);
     mean_vl = nanmean(rmse_val,2);
     mean_ts = nanmean(rmse_test_curve_all,2);
