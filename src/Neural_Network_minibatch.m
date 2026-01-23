@@ -132,15 +132,15 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 
                 % Forward pass
                 H1 = W1 * A_b' + b1;            % compute net of first hidden layer 
-                H2 = W2 * leaky(H1) + b2;       % activation of net and compute net of second hidden layer
-                Yb = (W3 * leaky(H2) + b3)';    % compute output
+                H2 = W2 * leaky(H1) + b2;       % activation of first net and compute net of second hidden layer
+                Yb = (W3 * leaky(H2) + b3)';    % activation of second net and compute output
                 
                 % Backward pass
                 E3 = (Yb - B_b)';               % output layer error
                 E2 = (W3' * E3) .* dleaky(H2);  % second hidden layer error
                 E1 = (W2' * E2) .* dleaky(H1);  % first hidden layer error
                 
-                % Gradients computation
+                % Gradients computation (error contribution of layer * layer in input) + L1 Regularization
                 dW3 = (E3 * leaky(H2)') / P_b + lambda * sign(W3);
                 dW2 = (E2 * leaky(H1)') / P_b + lambda * sign(W2);
                 dW1 = (E1 * A_b) / P_b + lambda * sign(W1);
