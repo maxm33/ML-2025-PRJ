@@ -119,7 +119,7 @@ if ~isempty(good_list)
     % Sort: primary = MEE, secondary = RMSE_val
     T = sortrows(T, {'mee', 'rmse'}, {'ascend', 'ascend'});
 
-    nTop = min(20, height(T));
+    nTop = min(50, height(T));
 
     fprintf('\n===== TOP %d GOOD MODELS =====\n\n', nTop);
 
