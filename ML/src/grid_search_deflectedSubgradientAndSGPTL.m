@@ -1,11 +1,11 @@
 % Grid Values
-numHidden1_vals = [30]; %valore ottimo
-numHidden2_vals = [20]; %valore ottimo
-lambda_vals     = [1e-4]; %valore ottimo
-beta_vals       = [3e-1];
-delta_multiplicator_vals = [1e-1];
-R_vals          = [1e-1];
-rho_vals        = [7e-1]; 
+numHidden1_vals = [30 40]; %valore ottimo
+numHidden2_vals = [20 30 40]; %valore ottimo
+lambda_vals     = [1e-3 1e-4]; %1e-2 e 1e-3 elimininare
+beta_vals       = [3e-1 2e-1 1e-1];
+delta_multiplicator_vals = [2e-1 1e-1];
+R_vals          = [1 0.5];
+rho_vals        = [5e-1 7e-1]; 
 
 % Combinations
 combo = [];
@@ -43,7 +43,7 @@ parfor i = 1:numCombo
     R = combo(i,6);
     rho = combo(i,7);
 
-    results1(i) = Neural_Network_batch_stepsizeRestrictedSGPTL(h1, h2, lambda, beta, delta, R, rho);
+    results1(i) = Neural_Network_batch_stepsizeRestrictedSGPTL_matrix(h1, h2, lambda, beta, delta, R, rho);
     %results2(i) = Neural_Network_batch_deflectionRestrictedSGPTL(h1, h2, lambda, beta, delta, R, rho);
 end
 
