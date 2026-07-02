@@ -1,6 +1,6 @@
 function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, alpha, batch_size)
     %% LOADING TRAINING DATA
-    Dataset = readtable('../data/TR/ML-CUP25-TR.csv');
+    Dataset = readtable('../../data/TR/ML-CUP25-TR.csv');
     
     inputs_raw = Dataset{:,2:13};
     outputs_raw = Dataset{:,14:end};
@@ -37,6 +37,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     mee_val = nan(maxEpochs,k);
     mee_val_norm = nan(maxEpochs,k);
     mee_test = nan(maxEpochs,k);
+
+    best_val_rmse = nan(1,k);
     
     best_mee_train = nan(1,k);
     best_mee_val = nan(1,k);
@@ -180,6 +182,11 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
             rmse_val(epoch,fold) = sqrt(mean((Yv - B_vl_norm).^2,'all'));
             Yv_den = Yv .* stdB + muB;
             mee_val(epoch,fold) = mean(sqrt(sum((B_vl - Yv_den).^2,2)));
+            if epoch == 1
+                best_val_rmse(fold) = rmse_val(epoch, fold);
+            elseif rmse_val(epoch, fold) < best_val_rmse(fold)
+                best_val_rmse(fold) = rmse_val(epoch, fold);
+            end
             
             diff_norm = B_vl_norm - Yv;
             mee_val_norm(epoch,fold) = mean(sqrt(sum(diff_norm.^2,2)));
@@ -246,6 +253,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.batch_size = batch_size;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
+
+    avg_best_val = mean(best_val_rmse); 
     
     model.training_time = posixtime(datetime('now')) - training_start_time;
     
@@ -267,8 +276,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     plot(1:max_epoch,mean_ts(1:max_epoch),'g','LineWidth',2);
     xlabel('Epoch'); ylabel('RMSE');
     legend({'Train','Validation','Test'},'Location','best');
-    title(sprintf('Learning Curves | h1=%d h2=%d eta=%g lambda=%g alpha=%g batch=%g',...
-        numHidden1,numHidden2,eta,lambda,alpha,batch_size)); grid on;
+    title(sprintf('Learning Curves | h1=%d h2=%d eta=%g lambda=%g alpha=%g batch=%g valRMSE=%.3f',...
+        numHidden1,numHidden2,eta,lambda,alpha,batch_size, avg_best_val)); grid on;
     
     [~,name] = fileparts(filename);
     exportgraphics(fig, fullfile('models',[name '_plot.png']));

@@ -1,7 +1,7 @@
-data = readmatrix('../data/TR/ML-CUP25-TR.csv');
-dataTS = readmatrix('../data/TS/ML-CUP25-TS.csv');
+data = readmatrix('../../data/TR/ML-CUP25-TR.csv');
+dataTS = readmatrix('../../data/TS/ML-CUP25-TS.csv');
 
-X = data(:, 2:end-4);
+X = data(:, 2:13);
 Y = data(:, 14:17);
 
 X_ts = dataTS(:, 2:end);
@@ -19,17 +19,23 @@ Yn = (Y - Y_mean) ./ Y_std;
 
 % inizializzo bias e pesi
 X_bias = [ones(size(Xn,1), 1), Xn];
-[n_samples, n_features] = size(X_bias);
-Xts_bias = [ones(size(Xts_n,1),1), Xts_n];
 
 n_outputs = size(Yn, 2);
 
 % utilizzo fattorizzazione QR
-[Q, R] = computeThinQR(X_bias);
-x = R \ (Q' * Yn);
-loss = norm(X_bias * x - Yn)^2/n_samples;  %MSE
-min(Y), max(Y), length(Y)
-Y_pred = X_bias * x;
+lambdas = [0, 0.001, 0.1, 1, 10, 100, 1000, 10000];
+for i = 1:length(lambdas)
+    lambda = lambdas(i);
+    n = size(X_bias, 2);
+    X_aug = [X_bias; sqrt(lambda) * eye(n)];
+    y_aug = [Yn; zeros(n, n_outputs)];
+    [Q, R] = computeThinQR(X_aug);
+    x = R \ (Q' * y_aug);
+    Y_pred = X_bias * x;
+    rmse = sqrt(mean((Y_pred - Yn).^2, 'all'));
+    fprintf('lambda = %8.3f | RMSE train = %.5f | norm(x) = %.5f\n', ...
+        lambda, rmse, norm(x));
+end
 
 figure;
 scatter3(Yn(:,1), Yn(:,2), Yn(:,3), 40, 'filled');
@@ -74,11 +80,11 @@ function [Q, R] = computeQR(A)
 
     % costruzione Householder sulla prima colonna
     x = A(:,1);
-    alpha = -sign(x(1)) * norm(x);
+    s = -sign(x(1)) * norm(x);
     e1 = zeros(m,1); 
-    e1(1) = alpha;
+    e1(1) = s;
     v = x - e1;
-    if norm(v) ~= 0 %permette di controllare di non dividere per 0
+    if norm(v) > 1e-12 %permette di controllare di non dividere per 0
         v = v / norm(v);
         H = eye(m) - 2*(v*v');
     else
@@ -100,39 +106,44 @@ end
 
 %per calcolare decomposizione QR thin
 function [Q, R] = computeThinQR(A)
-    
-    % dimensione della matrice A
     [m, n] = size(A);
-    % caso base n = 1
-    if n == 1
-        x = A(:,1);
-        alpha = -sign(x(1)) * norm(x);
-        e1 = zeros(m,1);
-        e1(1) = alpha;
-        v = x - e1;
-
-        H = eye(m) - 2*(v*v')/(v'*v);
-        R = alpha;
-        Q = H(:,1); % Thin: solo la prima colonna, il resto lo scarto
-        return
+    
+    % Caso base: se non ci sono più colonne da elaborare
+    if n == 0
+        Q = zeros(m, 0); 
+        R = [];
+        return;
     end
-
-    % caso ricorsivo
-    x_norm = norm(A(:,1)); % norma della prima colonna di A da usare come s
-    e = zeros(size(A,1),1); % vettore base
-    alpha = -sign(A(1,1)) * x_norm; % segno 
-    e(1) = alpha; 
-    v = A(:,1) - e; %calcolo v
-    I = eye(m);
-
-    H = I - (2 * (v * v') / (v'*v)); %calcolo Householder
-
-    A_new = H * A; 
-
-    [Q_new, R_new] = computeThinQR(A_new(2:end, 2:end));
-
-    R = [alpha, A_new(1,2:end); zeros(n-1,1), R_new];
-
-    q1 = H(:,1);
-    Q = [ q1 , H * [ zeros(1,n-1) ; Q_new ] ];
+    
+    % Costruzione del riflessore di Householder sulla prima colonna
+    x = A(:,1);
+    s = -sign(x(1)) * norm(x);
+    e1 = zeros(m,1); 
+    e1(1) = s;
+    v = x - e1;
+    
+    if norm(v) > 1e-12
+        v = v / norm(v);
+    else
+        v = zeros(m,1);
+    end
+    
+    % Applichiamo la trasformazione H = I - 2vv' ad A senza calcolare H esplicitamente
+    % H * A = A - 2 * v * (v' * A)
+    A_transf = A - 2 * v * (v' * A);
+    
+    % Ricorsione sulla sottomatrice inferiore destra
+    [Q_new, R_new] = computeThinQR(A_transf(2:end, 2:end));
+    
+    % 1. Ricostruzione di R (dimensione finale: n x n se m >= n)
+    R = [A_transf(1,1), A_transf(1,2:end);
+         zeros(n-1,1), R_new];
+         
+    % 2. Ricostruzione di Q (dimensione finale: m x n)
+    % Ricostruiamo la sottomatrice Q_sub aggiungendo la prima riga e colonna della base canonica
+    Q_sub = [1, zeros(1, n-1);
+             zeros(m-1, 1), Q_new];
+             
+    % Applichiamo il riflessore corrente H a Q_sub: H * Q_sub = Q_sub - 2 * v * (v' * Q_sub)
+    Q = Q_sub - 2 * v * (v' * Q_sub);
 end
