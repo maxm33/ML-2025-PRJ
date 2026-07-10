@@ -1,8 +1,8 @@
-function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lambda, activation_function, beta, delta, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, init_w)
+function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, init_w)
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
     % ====================================
-    Dataset_TR = readtable('../../data/TR/ML-CUP25-TR.csv');
+    Dataset_TR = readtable('../../../data/TR/ML-CUP25-TR.csv');
     
     inputs_TR  = Dataset_TR{:, 2:13};
     outputs_TR = Dataset_TR{:, 14:end};
@@ -78,7 +78,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lam
 
     for fold = 1:k
 
-        epoch = 0;
+        epoch = 1;
 
         % Early Stopping parameters initialization
         best_train_rmse(fold) = inf;
@@ -162,10 +162,11 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lam
         tau = tau0;                 % threshold for gamma
         iter_since_tau = 0;         % counter to update tau
         gamma = 1;                  % deflection parameter, at first stage only gradient
+        gamma_prev = 1;
+        alpha_prev = 1;
 
         while epoch < maxEpochs
-            epoch = epoch + 1;
-
+            
             % Normalized starting gradient
             E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
 
@@ -182,9 +183,9 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lam
 
             %% Stepsize-Restricted Rule
                 
-            [alpha, d_curr] = StepsizeRstricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch);
+            [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch);
 
-            fprintf('Epoch %d | gamma=%.9f | f_lev=%.6f | alpha=%.9f | loss=%.9f\n', epoch, gamma, f_lev, alpha, loss);
+            fprintf('Epoch %d | gamma=%.9f | alpha=%.9f | loss=%.9f\n', epoch, gamma, alpha, loss);
 
             %% Weights update
             
@@ -272,6 +273,8 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lam
             d_prev = d_curr;
             alpha_prev = alpha;
             gamma_prev = gamma;
+
+            epoch = epoch + 1;
         end
     end
 
@@ -295,13 +298,12 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lam
     model.tau_f = tau_f;
     model.tau_min = tau_min;
     model.m = m_ss;
-    model.stepRes = StepRes;
     model.k = k;
     model.early_stopping.patience = patience;
     model.early_stopping.tolerance = tolerance;
     model.final_epoch = final_epoch;
-    model.hidden1_activation = 'tahn';
-    model.hidden2_activation = 'tahn';
+    model.hidden1_activation = activation_function;
+    model.hidden2_activation = activation_function;
     model.output_activation = 'linear';
 
     model.initial_weights.W1 = init_W1;
@@ -333,7 +335,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, lam
     score = mean(best_val_rmse);
 end
 
-function [alpha, d_curr] = StepsizeRstricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch)
+function [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch)
     % Deflection()
     if epoch > 1
         num_gamma = eps_d - sigma - alpha_prev * (d_prev(:)' * (g - d_prev));
@@ -347,6 +349,8 @@ function [alpha, d_curr] = StepsizeRstricted(eps_d, sigma, alpha_prev, d_prev, g
         elseif gamma >= 1
             gamma = min(tau, 1.0);
         end
+    else 
+        gamma = 1;
     end
 
     % ComputeD()

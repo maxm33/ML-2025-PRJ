@@ -2,7 +2,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
     % ====================================
-    Dataset_TR = readtable('../../data/TR/ML-CUP25-TR.csv');
+    Dataset_TR = readtable('../../../data/TR/ML-CUP25-TR.csv');
     
     inputs_TR  = Dataset_TR{:, 2:13};
     outputs_TR = Dataset_TR{:, 14:end};
@@ -76,7 +76,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
 
     for fold = 1:k
 
-        epoch = 0;
+        epoch = 1;
 
         % Early Stopping parameters initialization
         best_train_rmse(fold) = inf;
@@ -169,9 +169,10 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
         tau = tau0;                 % threshold for gamma
         iter_since_tau = 0;         % counter to update tau
         gamma = 1;                  % deflection parameter, at first stage only gradient
+        gamma_prev = 1;
+        alpha_prev = 1;
 
         while epoch < maxEpochs
-            epoch = epoch + 1;
             
             % Normalized starting gradient
             E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
@@ -271,6 +272,8 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
             d_prev = d_curr;
             alpha_prev = alpha;
             gamma_prev = gamma;
+
+            epoch = epoch + 1;
         end
     end
 
@@ -292,15 +295,14 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
     model.tau_f = tau_f;
     model.tau_min = tau_min;
     model.m = m_ss;
-    model.stepRes = StepRes;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
     model.k = k;
     model.early_stopping.patience = patience;
     model.early_stopping.tolerance = tolerance;
     model.final_epoch = final_epoch;
-    model.hidden1_activation = 'tahn';
-    model.hidden2_activation = 'tahn';
+    model.hidden1_activation = activation_function;
+    model.hidden2_activation = activation_function;
     model.output_activation = 'linear';
 
     model.initial_weights.W1 = init_W1;
@@ -358,7 +360,7 @@ function [beta, ng, ny, nr, f_lev, f_rec] = ColorTVRule(loss, loss_prev, d_prev,
     if loss <= 1.05 * f_lev
        f_lev = f_lev - 0.05 * abs(f_lev);
     end
-       f_lev = max(f_lev, 0);
+    f_lev = max(f_lev, 0);
             
     if loss < f_rec
        f_rec = loss;
@@ -379,6 +381,8 @@ function [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, 
         elseif gamma >= 1
             gamma = min(tau, 1.0);
         end
+    else
+        gamma = 1;
     end
 
     % ComputeD()
