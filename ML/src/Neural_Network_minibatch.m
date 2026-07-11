@@ -1,4 +1,5 @@
 function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, alpha, batch_size)
+
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
     libDir = fullfile(rootDir,'..','..','lib');
