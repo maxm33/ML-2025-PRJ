@@ -1,87 +1,3 @@
-function [bestParams, bestScore] = grid_search_SGD()
-    % Grid Values
-    numHidden1_vals = [30];
-    numHidden2_vals = [10];
-    eta_vals        = [5e-4];
-    lambda_vals     = [1e-4];
-    alpha_vals      = [0.4];
-    
-    % Combinations
-    combo = [];
-    for e = alpha_vals
-        for d = lambda_vals
-            for b = numHidden2_vals
-                for a = numHidden1_vals
-                    for c = eta_vals
-                        combo = [combo; a b c d e];
-                    end 
-                end
-            end
-        end
-    end
-    
-    % Start parallel pool
-    if isempty(gcp('nocreate'))
-        parpool;     
-    end
-    
-    numCombo = size(combo,1);
-    results = zeros(numCombo,1);
-    
-    parfor i = 1:numCombo
-        h1 = combo(i,1);
-        h2 = combo(i,2);
-        eta = combo(i,3);
-        lambda = combo(i,4);
-        alpha = combo(i,5)
-    
-        results(i) = Neural_Network_SGD(h1, h2, eta, lambda, alpha);
-    end
-    
-    [bestScore, bestIdx] = min(results);
-    bestParams = combo(bestIdx,:);
-end
-
-function [bestParams, bestScore] = grid_search_batch()
-    % Grid Values
-    numHidden1_vals = [80 100 70 60];
-    numHidden2_vals = [100 80 60 70];
-    eta_vals        = [3e-1 2e-1 1e-1 1e-2 9e-2 7e-2 6e-2 4e-2];
-    lambda_vals     = [1e-5 1e-3 1e-2 1e-7];
-    
-    % Combinations
-    combo = [];
-    for d = lambda_vals
-        for b = numHidden2_vals
-            for a = numHidden1_vals
-                for c = eta_vals
-                    combo = [combo; a b c d];
-                end
-            end
-        end
-    end
-    
-    % Start parallel pool
-    if isempty(gcp('nocreate'))
-        parpool;     
-    end
-    
-    numCombo = size(combo,1);
-    results = zeros(numCombo,1);
-    
-    parfor i = 1:numCombo
-        h1 = combo(i,1);
-        h2 = combo(i,2);
-        eta = combo(i,3);
-        lambda = combo(i,4);
-    
-        results(i) = Neural_Network_batch(h1, h2, eta, lambda);
-    end
-    
-    [bestScore, bestIdx] = min(results);
-    bestParams = combo(bestIdx,:);
-end
-
 function [bestParams1, bestScore1, bestParams2, bestScore2] = grid_search_deflectedSubgradient()
         % Grid Values
         numHidden1_vals = [30 40 50 60 70 80];
@@ -531,8 +447,6 @@ function [bestParams, bestScore] = grid_search_minibatch()
     bestParams = combo(bestIdx,:);
 end
 
-%grid_search_SGD();
-%grid_search_batch();
 %grid_search_deflectedSubgradient();
 %[bestP1, score1] = grid_search_deflectedSubgradient_SGPTL();
 %grid_search_minibatch();

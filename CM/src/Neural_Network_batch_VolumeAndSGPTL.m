@@ -1,8 +1,16 @@
 function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, init_w)
+
+    %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
+    rootDir = fileparts(mfilename('fullpath'));
+    libDir = fullfile(rootDir,'..','..','lib');
+    if ~contains(path, libDir)
+        addpath(genpath(libDir));
+    end
+
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
     % ====================================
-    Dataset_TR = readtable('../../../data/TR/ML-CUP25-TR.csv');
+    Dataset_TR = readtable('../../data/TR/ML-CUP25-TR.csv');
     
     inputs_TR  = Dataset_TR{:, 2:13};
     outputs_TR = Dataset_TR{:, 14:end};
