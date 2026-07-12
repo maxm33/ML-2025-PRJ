@@ -15,7 +15,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     M = size(outputs_raw,2);
     
     %% DEFINING INTERNAL TEST SET (20% hold-out)
-    [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns);
+    [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
     patience = 400; tolerance = 0.01; maxEpochs = 5000;

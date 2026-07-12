@@ -1,5 +1,5 @@
-function [A_test, B_test, A_rest, B_rest] = split_dataset(inputs_raw, outputs_raw, Ns)
-    cv_test = cvpartition(Ns,'HoldOut',0.2);
+function [A_test, B_test, A_rest, B_rest] = split_dataset(inputs_raw, outputs_raw, Ns, test_percentage)
+    cv_test = cvpartition(Ns,'HoldOut',test_percentage);
 
     idx_test = test(cv_test);
     idx_rest = training(cv_test);
