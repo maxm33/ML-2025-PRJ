@@ -18,7 +18,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
-    patience = 400; tolerance = 0.01; maxEpochs = 5000;
+    patience = 500; tolerance = 0.02; maxEpochs = 10000;
     
     %% PERFOMANCE PARAMETERS
 
@@ -75,7 +75,6 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         model.weights_init(fold).b2 = b2;
         model.weights_init(fold).b3 = b3;
         
-        best_val = inf;
         no_improve = 0;
         
         % TRAINING LOOP
@@ -116,7 +115,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 best_rmse_test(fold) = rmse_test(epoch,fold);
             end
 
-            %% EARLY-STOPPING (has to improve of 1% wrt the best RMSE VL in the last patience epochs)
+            %% EARLY-STOPPING (has to improve of tolerance% wrt the best RMSE VL in the last patience epochs)
             if rmse_val(epoch,fold) < best_rmse_val(fold) * (1-tolerance)
                 best_rmse_val(fold) = rmse_val(epoch,fold);
                 best_epoch(fold) = epoch;
