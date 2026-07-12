@@ -2,7 +2,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
-    libDir = fullfile(rootDir,'..','..','lib');
+    libDir = fullfile(rootDir, '..', '..', 'lib');
     if ~contains(path, libDir)
         addpath(genpath(libDir));
     end
@@ -10,8 +10,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
     % ====================================
-    Dataset_TR = readtable('../../data/TR/ML-CUP25-TR.csv');
-    
+    Dataset_TR = readtable(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
     inputs_TR  = Dataset_TR{:, 2:13};
     outputs_TR = Dataset_TR{:, 14:end};
     
@@ -320,22 +319,26 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
     model.training_time = training_end_time - training_start_time;
 
     %% Saving and plot the model results
-    if ~exist('models', 'dir')
-        mkdir('models');
-    end
 
     avg_best_val = mean(best_val_rmse); 
 
     if avg_best_val < 0.7
-        filename = sprintf( ...
-                'models/ColorTV_Volume/stepsize/ColorTV-h1-%d-h2-%d-lambda-%g_%d.mat', ...
-                numHidden1, numHidden2, lambda, randi(1e6));
-        [~, name, ~] = fileparts(filename);
-        plot_file = fullfile('models/ColorTV_Volume/stepsize', [name '_plot.png']);
+
+        modelsDir = fullfile(rootDir, 'models/ColorTV_Volume/stepsize');
+        if ~exist(modelsDir, 'dir')
+            mkdir(modelsDir);
+        end
+
+        filename = fullfile(modelsDir, sprintf( ...
+                'ColorTV-h1-%d-h2-%d-lambda-%g_%d.mat', ...
+                numHidden1, numHidden2, lambda, randi(1e6)));
 
         save(filename, 'model');
 
-        Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file)
+        [~, name] = fileparts(filename);
+        
+        plot_file = fullfile(modelsDir, [name '_plot.png']);
+        Plot(rmse_train, rmse_val, rmse_test_curve_all, avg_best_mee, plot_file);
     end
 
     score = mean(best_val_rmse);

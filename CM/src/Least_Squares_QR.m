@@ -1,5 +1,6 @@
-data = readmatrix('../../data/TR/ML-CUP25-TR.csv');
-dataTS = readmatrix('../../data/TS/ML-CUP25-TS.csv');
+rootDir = fileparts(mfilename('fullpath'));
+data = readmatrix(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
+dataTS = readmatrix(fullfile(rootDir, '..', '..', 'data', 'TS', 'ML-CUP25-TS.csv'));
 
 X = data(:, 2:13);
 Y = data(:, 14:17);

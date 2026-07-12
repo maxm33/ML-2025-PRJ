@@ -2,13 +2,13 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
-    libDir = fullfile(rootDir,'..','..','lib');
+    libDir = fullfile(rootDir, '..', '..', 'lib');
     if ~contains(path, libDir)
         addpath(genpath(libDir));
     end
 
     %% LOADING TRAINING DATA
-    Dataset = readtable('../../data/TR/ML-CUP25-TR.csv');
+    Dataset = readtable(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
     inputs_raw = Dataset{:,2:13};
     outputs_raw = Dataset{:,14:end};
     [Ns, N] = size(inputs_raw);
@@ -70,7 +70,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         P_tr = size(A_tr,1);
         
         % HE-KAIMING WEIGHTS INITIALIZATION
-        [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = InitializeWeights(numHidden1, numHidden2, N, M);
+        [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientInitializeWeights(numHidden1, numHidden2, N, M);
         
         % SAVE INITIAL WEIGHTS
         model.weights_init(fold).W1 = W1;
@@ -97,7 +97,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 A_b = A(idx,:);
                 B_b = B(idx,:);
 
-            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = UpdateWeights(W1, W2, W3, b1, b2, b3, ...
+            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientUpdateWeights(W1, W2, W3, b1, b2, b3, ...
                     vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3, ...
                     A_b, B_b, eta, lambda, alpha, activation_function);
             end
@@ -156,8 +156,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         mee_test_curve_all(:,fold) = mee_test(:,fold);
     end
     %% SAVE REST OF MODEL'S DATA
-    model.rmse_train_min = min(nanmean(rmse_train,2));
-    model.rmse_val_min = min(nanmean(rmse_val,2));
+    model.rmse_train_curve_mean = mean(rmse_train, 2, 'omitnan');
+    model.rmse_val_curve_mean = mean(rmse_val, 2, 'omitnan');
     model.rmse_test_mean = mean(best_rmse_test,'omitnan');
     
     model.mee_train_curve = mee_train;
@@ -183,14 +183,21 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     
     model.training_time = posixtime(datetime('now')) - training_start_time;
     
-    if ~exist('models','dir'), mkdir('models'); end
-    filename = sprintf('models/h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%d.mat',...
-        numHidden1,numHidden2,eta,lambda,alpha,batch_size,randi(1e6));
-    save(filename,'model');
-    [~,name] = fileparts(filename);
-    
+    modelsDir = fullfile(rootDir, 'models');
+    if ~exist(modelsDir, 'dir')
+        mkdir(modelsDir);
+    end
+
+    filename = fullfile(modelsDir, sprintf( ...
+        'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%d.mat', ...
+        numHidden1, numHidden2, eta, lambda, alpha, batch_size, randi(1e6)));
+
+    save(filename, 'model');
+
+    [~, name] = fileparts(filename);
+
     %% PLOT AND SAVE LEARNING CURVES
-    plot_file = fullfile('models', [name '_plot.png']);
+    plot_file = fullfile(modelsDir, [name '_plot.png']);
     Plot(rmse_train, rmse_val, rmse_test_curve_all, avg_best_mee, plot_file);
     
     % mean of MEE VL (denormalized) as model evaluation parameter

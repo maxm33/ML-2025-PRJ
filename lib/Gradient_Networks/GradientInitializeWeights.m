@@ -1,5 +1,5 @@
 function [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = ...
-    InitializeWeights(numHidden1, numHidden2, N, M)
+    GradientInitializeWeights(numHidden1, numHidden2, N, M)
 
     W1 = randn(numHidden1,N) * sqrt(2/N);
     W2 = randn(numHidden2,numHidden1) * sqrt(2/numHidden1);
