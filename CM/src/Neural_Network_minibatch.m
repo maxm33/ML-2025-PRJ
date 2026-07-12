@@ -25,15 +25,9 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     % Folds
     k = 5;
     
-    % RMSE (Root Mean Square Error)
+    % Normalized RMSE (Root Mean Square Error)
     rmse_train = nan(maxEpochs,k); rmse_val = nan(maxEpochs,k); rmse_test = nan(maxEpochs,k);
-    best_rmse_test = nan(1,k);
-    rmse_test_curve_all = nan(maxEpochs,k);
-    
-    % MEE (Mean Euclidian Error)
-    mee_train = nan(maxEpochs,k); mee_val = nan(maxEpochs,k); mee_val_norm = nan(maxEpochs,k); mee_test = nan(maxEpochs,k);
-    best_mee_train = nan(1,k); best_mee_val = nan(1,k); best_mee_test = nan(1,k);
-    mee_test_curve_all = nan(maxEpochs,k);
+    best_rmse_train = inf(1,k); best_rmse_val = nan(1,k); best_rmse_test = nan(1,k);
 
     best_epoch = nan(1,k);
     
@@ -101,20 +95,14 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                     vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3, ...
                     A_b, B_b, eta, lambda, alpha, activation_function);
             end
+
             %% TRAINING ERRORS
             Ytr = Forward(A_tr_norm, W1, b1, W2, b2, W3, b3, activation_function);
             rmse_train(epoch,fold) = sqrt(mean((Ytr - B_tr_norm).^2,'all'));
-            Ytr_den = Ytr .* stdB + muB;
-            mee_train(epoch,fold) = mean(sqrt(sum((B_tr - Ytr_den).^2,2)));
             
             %% VALIDATION ERRORS
             Yv = Forward(A_vl_norm, W1, b1, W2, b2, W3, b3, activation_function);
             rmse_val(epoch,fold) = sqrt(mean((Yv - B_vl_norm).^2,'all'));
-            Yv_den = Yv .* stdB + muB;
-            mee_val(epoch,fold) = mean(sqrt(sum((B_vl - Yv_den).^2,2)));
-            
-            diff_norm = B_vl_norm - Yv;
-            mee_val_norm(epoch,fold) = mean(sqrt(sum(diff_norm.^2,2)));
             
             %% INTERNAL TEST ERRORS
             A_test_norm = (A_test - muA) ./ stdA;
@@ -122,27 +110,34 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
 
             Yt = Forward(A_test_norm, W1, b1, W2, b2, W3, b3, activation_function);
             rmse_test(epoch,fold) = sqrt(mean((Yt - B_test_norm).^2,'all'));
-            Yt_den = Yt .* stdB + muB;
-            mee_test(epoch,fold) = mean(sqrt(sum((B_test - Yt_den).^2,2)));
             
-            %% EARLY-STOPPING (has to improve of 1% wrt the best MEE VL in the last patience epochs)
-            if mee_val_norm(epoch,fold) < best_val * (1-tolerance)
-                best_val = mee_val_norm(epoch,fold);
-                best_mee_val(fold) = mee_val(epoch,fold);
-                best_mee_train(fold) = mee_train(epoch,fold);
-                best_mee_test(fold) = mee_test(epoch,fold);
+            if epoch == 1
+                best_rmse_val(fold) = rmse_val(epoch,fold);
                 best_rmse_test(fold) = rmse_test(epoch,fold);
-                best_epoch(fold) = epoch;
+            end
 
+            %% EARLY-STOPPING (has to improve of 1% wrt the best RMSE VL in the last patience epochs)
+            if rmse_val(epoch,fold) < best_rmse_val(fold) * (1-tolerance)
+                best_rmse_val(fold) = rmse_val(epoch,fold);
+                best_epoch(fold) = epoch;
                 no_improve = 0;
             else
                 no_improve = no_improve + 1;
             end
+
+            if rmse_train(epoch,fold) < best_rmse_train(fold)
+                best_rmse_train(fold) = rmse_train(epoch,fold);
+            end
+
+            if rmse_test(epoch,fold) < best_rmse_test(fold)
+                best_rmse_test(fold) = rmse_test(epoch,fold);
+            end
             
-            if no_improve >= patience || isnan(mee_val(epoch,fold))
+            if no_improve >= patience || isnan(rmse_val(epoch,fold))
                 break
             end
         end
+
         %% SAVE FINAL WEIGHTS
         model.weights_final(fold).W1 = W1;
         model.weights_final(fold).W2 = W2;
@@ -152,25 +147,16 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         model.weights_final(fold).b2 = b2;
         model.weights_final(fold).b3 = b3;
         
-        rmse_test_curve_all(:,fold) = rmse_test(:,fold);
-        mee_test_curve_all(:,fold) = mee_test(:,fold);
     end
+    
     %% SAVE REST OF MODEL'S DATA
-    model.rmse_train_curve_mean = mean(rmse_train, 2, 'omitnan');
-    model.rmse_val_curve_mean = mean(rmse_val, 2, 'omitnan');
-    model.rmse_test_mean = mean(best_rmse_test,'omitnan');
+    model.rmse_train = mean(best_rmse_train, 'omitnan');
+    model.rmse_val = mean(best_rmse_val, 'omitnan');
+    model.rmse_test = mean(best_rmse_test, 'omitnan');
     
-    model.mee_train_curve = mee_train;
-    model.mee_val_curve = mee_val;
-    model.mee_test_curve = mee_test;
-    
-    model.best_mee_train_per_fold = best_mee_train;
-    model.best_mee_val_per_fold = best_mee_val;
-    model.best_mee_test_per_fold = best_mee_test;
-    
-    model.mee_train_mean = mean(best_mee_train,'omitnan');
-    model.mee_cv_mean = mean(best_mee_val,'omitnan');
-    model.mee_test_mean = mean(best_mee_test,'omitnan');
+    model.rmse_train_curve = rmse_train;
+    model.rmse_val_curve = rmse_val;
+    model.rmse_test_curve = rmse_test;
     
     model.eta = eta;
     model.alpha = alpha;
@@ -179,7 +165,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
 
-    avg_best_mee = mean(best_mee_val,'omitnan');
+    avg_best_val = mean(best_rmse_val, 'omitnan');
     
     model.training_time = posixtime(datetime('now')) - training_start_time;
     
@@ -198,8 +184,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
 
     %% PLOT AND SAVE LEARNING CURVES
     plot_file = fullfile(modelsDir, [name '_plot.png']);
-    Plot(rmse_train, rmse_val, rmse_test_curve_all, avg_best_mee, plot_file);
+    Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
     
-    % mean of MEE VL (denormalized) as model evaluation parameter
-    score = model.mee_cv_mean;
+    % mean of RMSE VALIDATION as model evaluation parameter
+    score = avg_best_val;
 end

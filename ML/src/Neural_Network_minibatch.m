@@ -101,6 +101,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                     vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3, ...
                     A_b, B_b, eta, lambda, alpha, activation_function);
             end
+            
             %% TRAINING ERRORS
             Ytr = Forward(A_tr_norm, W1, b1, W2, b2, W3, b3, activation_function);
             rmse_train(epoch,fold) = sqrt(mean((Ytr - B_tr_norm).^2,'all'));
@@ -143,6 +144,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
                 break
             end
         end
+
         %% SAVE FINAL WEIGHTS
         model.weights_final(fold).W1 = W1;
         model.weights_final(fold).W2 = W2;
@@ -155,6 +157,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         rmse_test_curve_all(:,fold) = rmse_test(:,fold);
         mee_test_curve_all(:,fold) = mee_test(:,fold);
     end
+
     %% SAVE REST OF MODEL'S DATA
     model.rmse_train_curve_mean = mean(rmse_train, 2, 'omitnan');
     model.rmse_val_curve_mean = mean(rmse_val, 2, 'omitnan');

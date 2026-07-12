@@ -16,7 +16,7 @@ function Plot(rmse_train, rmse_val, rmse_test, avg_best_metric, plot_file)
     yticks(yl(1):0.05:1);
 
     xlabel('Epoch'); ylabel('RMSE');
-    title(sprintf('Learning Curve | AVG BEST MEE=%.3f', avg_best_metric));
+    title(sprintf('Learning Curve | AVG BEST RMSE=%.3f', avg_best_metric));
     grid on;
     legend([h1 h2 h3], {'Training', 'Validation', 'Test'}, 'Location', 'northeast', 'FontSize',10);
         
