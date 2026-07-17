@@ -11,9 +11,16 @@ function Plot(rmse_train, rmse_val, rmse_test, avg_best_metric, plot_file)
     h1 = plot(1:max_common_epoch, mean_train_curve, 'b', 'LineWidth', 1);
     h2 = plot(1:max_common_epoch, mean_val_curve, 'r', 'LineWidth', 1);
     h3 = plot(1:max_common_epoch, mean_test_curve, 'g', 'LineWidth', 1); 
-    yl = ylim;
-    ylim([yl(1), 1]);
-    yticks(yl(1):0.05:1);
+
+    yl = ylim;    
+    % Force upper limit to 1 only if possible
+    if yl(1) < 1
+        ylim([yl(1), 1]);
+        yticks(yl(1):0.05:1);
+    else
+        % Keep automatic limits
+        ylim(yl);
+    end
 
     xlabel('Epoch'); ylabel('RMSE');
     title(sprintf('Learning Curve | AVG BEST RMSE=%.3f', avg_best_metric));
