@@ -276,7 +276,6 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
                 best_train_rmse(fold) = rmse_train(epoch, fold);
             end
 
-
             d_prev = d_curr;
             alpha_prev = alpha;
             gamma_prev = gamma;
@@ -339,7 +338,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         [~, name] = fileparts(filename);
 
         plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot(rmse_train, rmse_val, rmse_test_curve_all, avg_best_mee, plot_file);
+        Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
     end
 
     score = mean(best_val_rmse);

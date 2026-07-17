@@ -338,7 +338,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
         [~, name] = fileparts(filename);
         
         plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot(rmse_train, rmse_val, rmse_test_curve_all, avg_best_mee, plot_file);
+        Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
     end
 
     score = mean(best_val_rmse);
