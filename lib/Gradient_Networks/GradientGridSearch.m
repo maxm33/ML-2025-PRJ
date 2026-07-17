@@ -1,11 +1,11 @@
 function [bestParams, bestScore] = grid_search_mb()
     % Grid Values
-    numHidden1_vals = [30];
-    numHidden2_vals = [20];
-    eta_vals        = [0.0001];
-    lambda_vals     = [0.001];
-    alpha_vals      = [0.9];
-    mb_vals         = [500];
+    numHidden1_vals = [5 10 15 20 25 30 40 50 60 70 80 100 120 150];
+    numHidden2_vals = [5 10 15 20 25 30 40 50 60 70 80 100 120 150];
+    eta_vals        = [5e-2 4e-2 3e-2 2e-2 1e-2 5e-3 1e-3 5e-4 1e-4 1e-5];
+    lambda_vals     = [5e-2 4e-2 3e-2 2e-2 1e-2 5e-3 1e-3 5e-4 1e-4 1e-5 1e-6];
+    alpha_vals      = [0.95 0.85 0.75 0.6 0.5 0.4 0.3 0.2 0.1 0];
+    mb_vals         = [50 100 125 250 500];
     
     % Combinations
     combo = [];

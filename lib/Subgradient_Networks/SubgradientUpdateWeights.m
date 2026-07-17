@@ -1,4 +1,4 @@
-function [W1, W2, W3, b1, b2, b3] = UpdateWeights(W1, W2, W3, b1, b2, b3, alpha, d_curr)
+function [W1, W2, W3, b1, b2, b3] = SubgradientUpdateWeights(W1, W2, W3, b1, b2, b3, alpha, d_curr)
     curr = 0;
 
     nElem = numel(W1);

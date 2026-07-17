@@ -199,7 +199,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
            
             %% Weights update
 
-            [W1, W2, W3, b1, b2, b3] = UpdateWeights(W1, W2, W3, b1, b2, b3, alpha, d_curr);
+            [W1, W2, W3, b1, b2, b3] = SubgradientUpdateWeights(W1, W2, W3, b1, b2, b3, alpha, d_curr);
 
             %% Feedforward
 

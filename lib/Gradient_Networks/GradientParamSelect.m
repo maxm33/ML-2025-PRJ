@@ -2,12 +2,11 @@
 clear; clc;
 
 % Percorso della cartella
-%folderPath = fullfile('models', 'ColorTV_Volume', 'deflection');
-folderPath = fullfile('models', 'SGPTL', 'deflection');
+currentDir = fileparts(mfilename('fullpath'));
+folderPath = fullfile(currentDir, '..', '..', 'CM', 'src', 'models');
 
 % Definizione dei parametri da monitorare (nomi usati nel tuo salvataggio)
-%paramNames = {'numHidden1', 'numHidden2', 'lambda', 'beta', 'cg', 'cy', 'cr', 'tau0', 'tau_p', 'tau_f', 'tau_min', 'm'};
-paramNames = {'numHidden1', 'numHidden2', 'lambda', 'beta', 'delta', 'R', 'rho', 'tau0', 'tau_p', 'tau_f', 'tau_min', 'm'};
+paramNames = {'numHidden1', 'numHidden2', 'lambda', 'eta', 'alpha', 'batch_size'};
 
 % Ottieni la lista dei file
 fileList = dir(fullfile(folderPath, '*.mat'));
@@ -23,30 +22,21 @@ for i = 1:numFiles
     try
         data = load(currentFile);
         % Verifica l'esistenza di model e rmse_validation
-        if isfield(data, 'model') && isfield(data.model, 'rmse_validation')
+        if isfield(data, 'model') && isfield(data.model, 'rmse_val')
             validCount = validCount + 1;
             
             % Creiamo una struct pulita con i nomi che vogliamo nella tabella finale
             s = struct();
             s.FileName = fileList(i).name;
-            s.RMSE_Val = data.model.rmse_validation;
+            s.RMSE_Val = data.model.rmse_val;
             
             % Mappatura esatta dai tuoi campi salvati
             s.numHidden1 = data.model.numHidden1;
             s.numHidden2 = data.model.numHidden2;
             s.lambda     = data.model.lambda;
-            s.beta       = data.model.beta;
-            s.delta      = data.model.delta;
-            s.R          = data.model.R;
-            s.rho        = data.model.rho;
-            %s.cg         = data.model.cg;
-            %s.cy         = data.model.cy;
-            %s.cr         = data.model.cr;
-            s.tau0       = data.model.tau0;
-            s.tau_p      = data.model.tau_p;
-            s.tau_f      = data.model.tau_f;
-            s.tau_min    = data.model.tau_min;
-            s.m          = data.model.m; % Questo legge model.m
+            s.eta        = data.model.eta;
+            s.alpha      = data.model.alpha;
+            s.batch_size = data.model.batch_size;
             
             dataCell{validCount} = s;
         end
@@ -62,8 +52,7 @@ if isempty(dataCell)
     error('Nessun modello trovato. Verifica che la cartella contenga file .mat validi.');
 end
 
-% Converti in tabella (usando cell2mat su array riga)
-resTable = struct2table(cell2mat(dataCell'));
+resTable = struct2table([dataCell{:}]);
 
 % Ordina per RMSE crescente
 resTable = sortrows(resTable, 'RMSE_Val', 'ascend');
