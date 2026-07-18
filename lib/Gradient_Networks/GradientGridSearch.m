@@ -1,12 +1,11 @@
 function [bestParams, bestScore] = grid_search_mb()
-
     % Grid Values
-    numHidden1_vals = [10 20 30 40 50 60 70 80 90 100];
-    numHidden2_vals = [10 20 30 40 50 60 70 80 90 100];
-    eta_vals        = [5e-2 3e-2 1e-2 5e-3 1e-3 5e-4 1e-4 1e-5];
-    lambda_vals     = [5e-2 3e-2 1e-2 5e-3 1e-3 5e-4 1e-4 1e-5];
-    alpha_vals      = [0.95 0.85 0.75 0.6 0.5 0.4 0.3];
-    batch_vals      = [50 125 250 500];
+    numHidden1_vals = [20 30 40 50 60 70 80];
+    numHidden2_vals = [20 30 40 50 60 70 80];
+    eta_vals        = [5e-2 3e-2 1e-2 7e-3 5e-3 1e-3 7e-4 5e-4 1e-4 1e-5];
+    lambda_vals     = [5e-2 3e-2 1e-2 7e-3 5e-3 1e-3 7e-4 5e-4 1e-4 1e-5];
+    alpha_vals      = [0.95 0.85 0.75];
+    batch_vals      = [125 250 500];
 
     % Number of combinations
     n1 = numel(numHidden1_vals);
@@ -27,15 +26,27 @@ function [bestParams, bestScore] = grid_search_mb()
 
     % Progress counter
     dq = parallel.pool.DataQueue;
-    afterEach(dq, @updateProgress);
     completed = 0;
-
-    % function for progress update
+    tStart = tic;
+    lastPrint = 0;
+    afterEach(dq, @updateProgress);
+    
     function updateProgress(~)
         completed = completed + 1;
-        if mod(completed,100) == 0 || completed == numCombo
-            percent = 100 * completed / numCombo;
-            fprintf('\rCompleted: %d/%d (%.2f%%)', completed, numCombo, percent);
+        elapsed = toc(tStart);
+    
+        % Print every 5 minutes
+        if elapsed - lastPrint >= 300 || completed == numCombo
+            
+            lastPrint = elapsed;
+            percent = 100*completed/numCombo;
+    
+            % Estimate remaining time
+            rate = completed/elapsed;           % combinations per second
+            estimated = (numCombo-completed)/rate;
+    
+            fprintf('\rCompleted: %d/%d (%.2f%%) | Elapsed: %.1f min(s) / %.1f hour(s) | ETA: %.1f min(s) / %.1f hour(s)', ...
+                completed, numCombo, percent, elapsed/60, elapsed/3600, estimated/60, estimated/3600);
         end
     end
     
@@ -83,7 +94,7 @@ function [bestParams, bestScore] = grid_search_mb()
     fprintf('Eta: %.6f\n', bestParams(3));
     fprintf('Lambda: %.6f\n', bestParams(4));
     fprintf('Alpha: %.2f\n', bestParams(5));
-    fprintf('Mini batch: %d\n', bestParams(6));
+    fprintf('Batch: %d\n', bestParams(6));
     fprintf('Best score: %.6f\n', bestScore);
 end
 

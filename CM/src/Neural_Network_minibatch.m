@@ -34,13 +34,13 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.weights_init = struct([]);
     model.weights_final = struct([]);
     
-    training_start_time = posixtime(datetime('now'));
-    
     %% ACTIVATION FUNCTION (Leaky ReLU)
     activation_function = 'leakyrelu';
     
     %% K-FOLD CROSS-VALIDATION LOOP
     cv = cvpartition(size(A_rest,1),'KFold',k);
+
+    training_start_time = posixtime(datetime('now'));
 
     for fold = 1:k
         idx_tr = training(cv,fold);
@@ -149,6 +149,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     end
     
     %% SAVE REST OF MODEL'S DATA
+    model.training_time = posixtime(datetime('now')) - training_start_time;
+
     model.rmse_train = mean(best_rmse_train, 'omitnan');
     model.rmse_val = mean(best_rmse_val, 'omitnan');
     model.rmse_test = mean(best_rmse_test, 'omitnan');
@@ -165,25 +167,55 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.numHidden2 = numHidden2;
 
     avg_best_val = mean(best_rmse_val, 'omitnan');
+
+    %% CHECK WHETHER MODEL SHOULD BE SAVED
+    VAR_THRESHOLD       = 0.001;     % normalized total variation threshold
+    OVERFIT_THRESHOLD   = 0.025;     % allowed validation-training RMSE gap
+    RMSE_THRESHOLD      = 0.65;
     
-    model.training_time = posixtime(datetime('now')) - training_start_time;
+    totalVariations = zeros(1,k);
+    overfitGaps = zeros(1,k);
+    save_model = true;
     
-    modelsDir = fullfile(rootDir, 'models');
-    if ~exist(modelsDir, 'dir')
-        mkdir(modelsDir);
+    for fold = 1:k
+        curve = rmse_val(:,fold);
+        curve = curve(~isnan(curve));
+    
+        if numel(curve) > 1
+            totalVariations(fold) = sum(abs(diff(curve))) / numel(curve);
+        end
+    
+        overfitGaps(fold) = best_rmse_val(fold) - best_rmse_train(fold);
     end
-
-    filename = fullfile(modelsDir, sprintf( ...
-        'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%d.mat', ...
-        numHidden1, numHidden2, eta, lambda, alpha, batch_size, randi(1e6)));
-
-    save(filename, 'model');
-
-    [~, name] = fileparts(filename);
-
-    %% PLOT AND SAVE LEARNING CURVES
-    plot_file = fullfile(modelsDir, [name '_plot.png']);
-    Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
+    
+    avgTotalVariation = mean(totalVariations);
+    avgOverfitGap = mean(overfitGaps);
+    
+    if avgTotalVariation > VAR_THRESHOLD ||...
+       avgOverfitGap > OVERFIT_THRESHOLD ||...
+       avg_best_val > RMSE_THRESHOLD
+            
+        save_model = false;
+    end
+    
+    if save_model
+        modelsDir = fullfile(rootDir, 'models');
+        if ~exist(modelsDir, 'dir')
+            mkdir(modelsDir);
+        end
+    
+        filename = fullfile(modelsDir, sprintf( ...
+            'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%d.mat', ...
+            numHidden1, numHidden2, eta, lambda, alpha, batch_size, randi(1e6)));
+    
+        save(filename, 'model');
+    
+        [~, name] = fileparts(filename);
+    
+        %% PLOT AND SAVE LEARNING CURVES
+        plot_file = fullfile(modelsDir, [name '_plot.png']);
+        Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
+    end
     
     % mean of RMSE VALIDATION as model evaluation parameter
     score = avg_best_val;

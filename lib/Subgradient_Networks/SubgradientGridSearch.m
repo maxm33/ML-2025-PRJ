@@ -44,14 +44,27 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
 
     % Progress counter
     dq = parallel.pool.DataQueue;
-    afterEach(dq,@updateProgress);
     completed = 0;
-
+    tStart = tic;
+    lastPrint = 0;
+    afterEach(dq, @updateProgress);
+    
     function updateProgress(~)
         completed = completed + 1;
-        if mod(completed,100)==0 || completed==numCombo
-            percent = 100 * completed / numCombo;
-            fprintf('\rCompleted: %d/%d (%.2f%%)', completed, numCombo, percent);
+        elapsed = toc(tStart);
+    
+        % Print every 120 seconds
+        if elapsed - lastPrint >= 120 || completed == numCombo
+            
+            lastPrint = elapsed;
+            percent = 100*completed/numCombo;
+    
+            % Estimate remaining time
+            rate = completed/elapsed;           % combinations per second
+            estimated = (numCombo-completed)/rate;
+    
+            fprintf('\rCompleted: %d/%d (%.2f%%) | Elapsed: %.1f min(s) / %.1f hour(s) | ETA: %.1f min(s) / %.1f hour(s)', ...
+                completed, numCombo, percent, elapsed/60, elapsed/3600, estimated/60, estimated/3600);
         end
     end
 
@@ -194,14 +207,27 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
 
     % Progress counter
     dq = parallel.pool.DataQueue;
-    afterEach(dq,@updateProgress);
     completed = 0;
-
+    tStart = tic;
+    lastPrint = 0;
+    afterEach(dq, @updateProgress);
+    
     function updateProgress(~)
         completed = completed + 1;
-        if mod(completed,100)==0 || completed==numCombo
-            percent = 100 * completed / numCombo;
-            fprintf('\rCompleted: %d/%d (%.2f%%)', completed, numCombo, percent);
+        elapsed = toc(tStart);
+    
+        % Print every 120 seconds
+        if elapsed - lastPrint >= 120 || completed == numCombo
+            
+            lastPrint = elapsed;
+            percent = 100*completed/numCombo;
+    
+            % Estimate remaining time
+            rate = completed/elapsed;           % combinations per second
+            estimated = (numCombo-completed)/rate;
+    
+            fprintf('\rCompleted: %d/%d (%.2f%%) | Elapsed: %.1f min(s) / %.1f hour(s) | ETA: %.1f min(s) / %.1f hour(s)', ...
+                completed, numCombo, percent, elapsed/60, elapsed/3600, estimated/60, estimated/3600);
         end
     end
 
