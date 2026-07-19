@@ -18,7 +18,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
-    patience = 500; tolerance = 0.02; maxEpochs = 10000;
+    patience = 300; tolerance = 0.002; maxEpochs = 10000;
     
     %% PERFOMANCE PARAMETERS
 
@@ -33,6 +33,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     
     model.weights_init = struct([]);
     model.weights_final = struct([]);
+    model.weights_best = struct([]);
     
     %% ACTIVATION FUNCTION (Leaky ReLU)
     activation_function = 'leakyrelu';
@@ -74,7 +75,10 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         model.weights_init(fold).b1 = b1;
         model.weights_init(fold).b2 = b2;
         model.weights_init(fold).b3 = b3;
-        
+
+        best_W1 = W1; best_W2 = W2; best_W3 = W3;
+        best_b1 = b1; best_b2 = b2; best_b3 = b3;
+
         no_improve = 0;
         
         % TRAINING LOOP
@@ -118,18 +122,21 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
             %% EARLY-STOPPING (has to improve of tolerance% wrt the best RMSE VL in the last patience epochs)
             if rmse_val(epoch,fold) < best_rmse_val(fold) * (1-tolerance)
                 best_rmse_val(fold) = rmse_val(epoch,fold);
+                best_rmse_train(fold) = rmse_train(epoch,fold);
+                best_rmse_test(fold) = rmse_test(epoch,fold);
                 best_epoch(fold) = epoch;
                 no_improve = 0;
+            
+                % SAVE CURRENT BEST WEIGHTS
+                best_W1 = W1;
+                best_W2 = W2;
+                best_W3 = W3;
+            
+                best_b1 = b1;
+                best_b2 = b2;
+                best_b3 = b3;
             else
                 no_improve = no_improve + 1;
-            end
-
-            if rmse_train(epoch,fold) < best_rmse_train(fold)
-                best_rmse_train(fold) = rmse_train(epoch,fold);
-            end
-
-            if rmse_test(epoch,fold) < best_rmse_test(fold)
-                best_rmse_test(fold) = rmse_test(epoch,fold);
             end
             
             if no_improve >= patience || isnan(rmse_val(epoch,fold))
@@ -146,6 +153,14 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         model.weights_final(fold).b2 = b2;
         model.weights_final(fold).b3 = b3;
         
+        %% SAVE BEST WEIGHTS
+        model.weights_best(fold).W1 = best_W1;
+        model.weights_best(fold).W2 = best_W2;
+        model.weights_best(fold).W3 = best_W3;
+        
+        model.weights_best(fold).b1 = best_b1;
+        model.weights_best(fold).b2 = best_b2;
+        model.weights_best(fold).b3 = best_b3;
     end
     
     %% SAVE REST OF MODEL'S DATA
@@ -169,15 +184,20 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     avg_best_val = mean(best_rmse_val, 'omitnan');
 
     %% CHECK WHETHER MODEL SHOULD BE SAVED
-    VAR_THRESHOLD       = 0.001;     % normalized total variation threshold
-    OVERFIT_THRESHOLD   = 0.025;     % allowed validation-training RMSE gap
-    RMSE_THRESHOLD      = 0.65;
+    VAR_THRESHOLD       = 0.004;   % threshold for validation curve smoothness/stability (total variation)
+    OVERFIT_THRESHOLD   = 0.175;   % threshold for train-validation gap considered overfitting
+    RMSE_THRESHOLD      = 0.65;    % maximum accepted normalized validation RMSE
+    UNDERFIT_GAP        = 0.10;    % train-validation gap below which errors are considered similar
     
     totalVariations = zeros(1,k);
     overfitGaps = zeros(1,k);
+    
+    rejection_reasons = {};
     save_model = true;
     
     for fold = 1:k
+    
+        % Validation curve stability
         curve = rmse_val(:,fold);
         curve = curve(~isnan(curve));
     
@@ -185,17 +205,64 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
             totalVariations(fold) = sum(abs(diff(curve))) / numel(curve);
         end
     
-        overfitGaps(fold) = best_rmse_val(fold) - best_rmse_train(fold);
+        % Overfitting gap
+        overfitGaps(fold) = ...
+            (best_rmse_val(fold) - best_rmse_train(fold)) / ...
+            max(best_rmse_train(fold), eps);
+    
     end
     
     avgTotalVariation = mean(totalVariations);
     avgOverfitGap = mean(overfitGaps);
     
-    if avgTotalVariation > VAR_THRESHOLD ||...
-       avgOverfitGap > OVERFIT_THRESHOLD ||...
-       avg_best_val > RMSE_THRESHOLD
-            
+    avgTrainRMSE = mean(best_rmse_train,'omitnan');
+    avgValRMSE   = mean(best_rmse_val,'omitnan');
+    
+    % Relative train-validation difference
+    relativeGap = abs(avgValRMSE - avgTrainRMSE) / max(avgTrainRMSE, eps);
+
+    if avgTotalVariation > 1 
+        avgTotalVariation=inf;
+    end
+    
+    %% REJECTION CONDITIONS
+    
+    % 1) Unstable validation learning curve
+    % High variation in performance throughout training, likely a noisy curve
+    if avgTotalVariation > VAR_THRESHOLD
+        rejection_reasons{end+1} = sprintf('unstable (var %.4f > %.4f)', ...
+            avgTotalVariation, VAR_THRESHOLD);
+    end
+    
+    % 2) Overfitting
+    % High percentage gap between training and validation errors
+    if avgOverfitGap > OVERFIT_THRESHOLD
+        rejection_reasons{end+1} = sprintf('overfitting (gap %.1f%% > %.1f%%)', ...
+            100*avgOverfitGap, 100*OVERFIT_THRESHOLD);
+    end
+    
+    % 3) Underfitting
+    % High training and validation errors, but almost no difference between them
+    if avg_best_val > RMSE_THRESHOLD && relativeGap < UNDERFIT_GAP
+        rejection_reasons{end+1} = sprintf('underfitting (RMSE TR %.3f, RMSE VL %.3f)', ...
+            avgTrainRMSE, avgValRMSE);
+    end
+    
+    % 4) RMSE Validation not good enough
+    % Poor validation performance not explained by underfitting
+    if avg_best_val > RMSE_THRESHOLD && relativeGap >= UNDERFIT_GAP
+        rejection_reasons{end+1} = sprintf('high RMSE VL (%.3f > %.3f)', ...
+            avg_best_val, RMSE_THRESHOLD);
+    end
+    
+    %% FINAL DECISION
+    if ~isempty(rejection_reasons)
+    
         save_model = false;
+    
+        fprintf('\nh1=%d-h2=%d-eta=%g-lambda=%g-alpha=%g-batch=%g rejected: %s', ...
+            numHidden1, numHidden2, eta, lambda, alpha, batch_size, ...
+            strjoin(rejection_reasons, ', '));
     end
     
     if save_model

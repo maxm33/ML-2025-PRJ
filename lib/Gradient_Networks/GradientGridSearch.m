@@ -56,7 +56,7 @@ function [bestParams, bestScore] = grid_search_mb()
     parfor i = 1:numCombo
     
         % Convert linear index into parameter indices
-        [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch] = ind2sub([n1 n2 ne nl na nb], i);
+        [idx_batch, idx_eta, idx_h1, idx_h2, idx_lambda, idx_alpha] = ind2sub([nb ne n1 n2 nl na], i);
     
         % Extract parameters
         h1      = numHidden1_vals(idx_h1);
@@ -76,8 +76,8 @@ function [bestParams, bestScore] = grid_search_mb()
     % Find best result
     [bestScore, bestIdx] = min(results);
 
-    % Recover best parameters
-    [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch] = ind2sub([n1 n2 ne nl na nb], bestIdx);
+    % Recover best parameters using the same linear-index ordering as the loop
+    [idx_batch, idx_eta, idx_h1, idx_h2, idx_lambda, idx_alpha] = ind2sub([nb ne n1 n2 nl na], bestIdx);
 
     bestParams = [
         numHidden1_vals(idx_h1), ...
