@@ -18,7 +18,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
-    patience = 300; tolerance = 0.002; maxEpochs = 10000;
+    patience = 200; tolerance = 0.01; maxEpochs = 10000;
     
     %% PERFOMANCE PARAMETERS
 
@@ -36,7 +36,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.weights_best = struct([]);
     
     %% ACTIVATION FUNCTION (Leaky ReLU)
-    activation_function = 'leakyrelu';
+    activation_function = 'tanh';
     
     %% K-FOLD CROSS-VALIDATION LOOP
     cv = cvpartition(size(A_rest,1),'KFold',k);
