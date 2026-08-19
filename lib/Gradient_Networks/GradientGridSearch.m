@@ -1,11 +1,12 @@
 function [bestParams, bestScore] = grid_search_mb()
     % Grid Values
-    numHidden1_vals = [20 30 40 50 60 70 80];
-    numHidden2_vals = [20 30 40 50 60 70 80];
-    eta_vals        = [5e-2 3e-2 1e-2 7e-3 5e-3 1e-3 7e-4 5e-4 1e-4 1e-5];
-    lambda_vals     = [5e-2 3e-2 1e-2 7e-3 5e-3 1e-3 7e-4 5e-4 1e-4 1e-5];
-    alpha_vals      = [0.95 0.85 0.75];
-    batch_vals      = [125 250 500];
+    numHidden1_vals = [70];
+    numHidden2_vals = [50];
+    eta_vals        = [1e-3];
+    lambda_vals     = [1e-4];
+    alpha_vals      = [0.9];
+    batch_vals      = [250];
+    seed            = [50:500 1932];
 
     % Number of combinations
     n1 = numel(numHidden1_vals);
@@ -14,8 +15,9 @@ function [bestParams, bestScore] = grid_search_mb()
     nl = numel(lambda_vals);
     na = numel(alpha_vals);
     nb = numel(batch_vals);
+    ns = numel(seed);
 
-    numCombo = n1*n2*ne*nl*na*nb;
+    numCombo = n1*n2*ne*nl*na*nb*ns;
     fprintf('\nTotal combinations: %d\n', numCombo);
     results = zeros(numCombo,1);
 
@@ -56,7 +58,7 @@ function [bestParams, bestScore] = grid_search_mb()
     parfor i = 1:numCombo
     
         % Convert linear index into parameter indices
-        [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch] = ind2sub([n1 n2 ne nl na nb], i);
+        [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch, idx_seed] = ind2sub([n1 n2 ne nl na nb ns], i);
     
         % Extract parameters
         h1      = numHidden1_vals(idx_h1);
@@ -65,9 +67,10 @@ function [bestParams, bestScore] = grid_search_mb()
         lambda  = lambda_vals(idx_lambda);
         alpha   = alpha_vals(idx_alpha);
         batch   = batch_vals(idx_batch);
+        s       = seed(idx_seed);
     
         % Train network
-        results(i) = Neural_Network_minibatch(h1, h2, eta, lambda, alpha, batch);
+        results(i) = Neural_Network_minibatch(h1, h2, eta, lambda, alpha, batch, s);
     
         % Notify progress
         send(dq, i);
@@ -77,7 +80,7 @@ function [bestParams, bestScore] = grid_search_mb()
     [bestScore, bestIdx] = min(results);
 
     % Recover best parameters
-    [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch] = ind2sub([n1 n2 ne nl na nb], bestIdx);
+    [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch, idx_seed] = ind2sub([n1 n2 ne nl na nb ns], bestIdx);
 
     bestParams = [
         numHidden1_vals(idx_h1), ...
@@ -85,7 +88,8 @@ function [bestParams, bestScore] = grid_search_mb()
         eta_vals(idx_eta), ...
         lambda_vals(idx_lambda), ...
         alpha_vals(idx_alpha), ...
-        batch_vals(idx_batch)
+        batch_vals(idx_batch), ...
+        seed(idx_seed)
     ];
 
     fprintf('\nBest parameters:\n');
@@ -95,6 +99,7 @@ function [bestParams, bestScore] = grid_search_mb()
     fprintf('Lambda: %.6f\n', bestParams(4));
     fprintf('Alpha: %.2f\n', bestParams(5));
     fprintf('Batch: %d\n', bestParams(6));
+    fprintf('Seed: %d\n', bestParams(7));
     fprintf('Best score: %.6f\n', bestScore);
 end
 

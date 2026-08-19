@@ -1,4 +1,4 @@
-function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, alpha, batch_size)
+function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, alpha, batch_size, seed)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -6,6 +6,8 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     if ~contains(path, libDir)
         addpath(genpath(libDir));
     end
+
+    rng(seed, 'twister');
 
     %% LOADING TRAINING DATA
     Dataset = readtable(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
@@ -18,7 +20,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
-    patience = 500; tolerance = 0.02; maxEpochs = 10000;
+    patience = 300; tolerance = 1e-4; maxEpochs = 10000;
     
     %% PERFOMANCE PARAMETERS
 
@@ -194,19 +196,23 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     if avgTotalVariation > VAR_THRESHOLD ||...
        avgOverfitGap > OVERFIT_THRESHOLD ||...
        avg_best_val > RMSE_THRESHOLD
-            
-        save_model = false;
+
+        save_model = true;
     end
     
     if save_model
-        modelsDir = fullfile(rootDir, 'models');
+        modelsDir = fullfile(rootDir, 'models/Gradient');
         if ~exist(modelsDir, 'dir')
             mkdir(modelsDir);
         end
+
+        % ID univoco derivato dal thread/worker o UUID (non altera rng)
+        uuid_str = char(java.util.UUID.randomUUID);
+        unique_id = uuid_str(1:8);
     
         filename = fullfile(modelsDir, sprintf( ...
             'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%d.mat', ...
-            numHidden1, numHidden2, eta, lambda, alpha, batch_size, randi(1e6)));
+            numHidden1, numHidden2, eta, lambda, alpha, batch_size, unique_id));
     
         save(filename, 'model');
     

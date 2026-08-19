@@ -1,20 +1,22 @@
-function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV()
+function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV(retraining, filename)
+
     % Grid Values
-    numHidden1_vals = [60];     % 80 il meglio
-    numHidden2_vals = [40];     % da capire
-    lambda_vals     = [1e-3];   % poca differenza per ora, non sotto 1e-3
-    beta_vals       = [0.1];    % minore di 0.0005 troppo lento, maggiore di 0.002 troppo veloce
-    cg_vals         = [100];    % 50 valore ottimo per ora
+    numHidden1_vals = [70];     
+    numHidden2_vals = [50];     
+    lambda_vals     = [1e-4];   
+    beta_vals       = [0.01];    % minore di 0.0005 troppo lento, maggiore di 0.002 troppo veloce
+    cg_vals         = [150];    % 50 valore ottimo per ora
     cy_vals         = [200];    % sembra poco importante, fisso a 400 
-    cr_vals         = [10];     % 10 sembra il migliore 
+    cr_vals         = [3];     % 10 sembra il migliore 
     tau0_vals       = [1];      % cambia poco,lo fisso a 1
     tau_p_vals      = [200];    % ben distribuite
     tau_f_vals      = [0.9];    % è uguale
     tau_min_vals    = [1e-5];   % questo è un floor raramente raggiunto
-    m_vals          = [0.7];    % da 0.01 in giu
-    patience        = [200];
-    tolerance       = [0.01];
+    m_vals          = [0.01];    % da 0.01 in giu
+    patience        = [300];
+    tolerance       = [1e-4];
     activation_funs = ["tanh"];
+    seed            = [1932];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -32,8 +34,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     nm  = numel(m_vals);
     np  = numel(patience);
     nt  = numel(tolerance);
+    ns  = numel(seed);
 
-    numCombo = n1*n2*na*nl*nb*ncg*ncy*ncr*nt0*ntp*ntf*ntm*nm*np*nt;
+    numCombo = n1*n2*na*nl*nb*ncg*ncy*ncr*nt0*ntp*ntf*ntm*nm*np*nt*ns;
     fprintf('\nTotal combinations: %d\n',numCombo);
     results1 = zeros(numCombo,1);
 
@@ -70,19 +73,32 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
 
     fprintf('\nStarting grid search...\n');
 
-    rng(42);
+    %rng(42);
     N = 12; M = 4;
     
-    arch_combos = unique([numHidden1_vals(:), numHidden2_vals(:)],'rows');
+    [H1, H2] = ndgrid(numHidden1_vals, numHidden2_vals);
+    arch_combos = [H1(:), H2(:)];
     
     init_weights = cell(size(arch_combos,1),1);
     
     for k = 1:size(arch_combos,1)
+
         h1_init = arch_combos(k,1);
         h2_init = arch_combos(k,2);
-        w.W1 = initXavier(h1_init,N);
-        w.W2 = initXavier(h2_init,h1_init);
-        w.W3 = initXavier(M,h2_init);
+        if retraining
+            data = load(filename);
+            model_sel = data.model;
+
+            w.W1 = model_sel.initial_weights.W1;
+            w.W2 = model_sel.initial_weights.W2;
+            w.W3 = model_sel.initial_weights.W3;
+        else     
+            for fold = 1:5
+                w.W1{fold} = initXavier(h1_init,N);
+                w.W2{fold} = initXavier(h2_init,h1_init);
+                w.W3{fold} = initXavier(M,h2_init);
+            end
+        end
         w.b1 = zeros(h1_init,1);
         w.b2 = zeros(h2_init,1);
         w.b3 = zeros(M,1);
@@ -96,9 +112,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         [idx_h1, idx_h2, idx_fun, idx_lambda, idx_beta,...
          idx_cg, idx_cy, idx_cr,...
          idx_tau0, idx_tau_p, idx_tau_f, idx_tau_min,...
-         idx_m, idx_patience, idx_tolerance] = ...
+         idx_m, idx_patience, idx_tolerance, idx_seed] = ...
          ind2sub([n1 n2 na nl nb ncg ncy ncr ...
-                  nt0 ntp ntf ntm nm np nt],i);
+                  nt0 ntp ntf ntm nm np nt ns],i);
 
         % Extract parameters
         h1 = numHidden1_vals(idx_h1);
@@ -116,6 +132,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         m = m_vals(idx_m);
         pat = patience(idx_patience);
         tol = tolerance(idx_tolerance);
+        s = seed(idx_seed);
 
         arch_idx = find(arch_combos(:,1)==h1 & arch_combos(:,2)==h2);
         
@@ -126,7 +143,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
             lambda,beta,...
             cg,cy,cr,...
             tau0,tau_p,tau_f,tau_min,...
-            m,pat,tol,w);
+            m,pat,tol,s,w);
 
         send(dq,i);
     end
@@ -138,9 +155,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     [idx_h1, idx_h2, idx_fun, idx_lambda, idx_beta,...
      idx_cg, idx_cy, idx_cr,...
      idx_tau0, idx_tau_p, idx_tau_f, idx_tau_min,...
-     idx_m, idx_patience, idx_tolerance] = ...
+     idx_m, idx_patience, idx_tolerance, idx_seed] = ...
      ind2sub([n1 n2 na nl nb ncg ncy ncr ...
-              nt0 ntp ntf ntm nm np nt],bestIdx1);
+              nt0 ntp ntf ntm nm np nt ns],bestIdx1);
 
     bestParams1 = {
         numHidden1_vals(idx_h1),...
@@ -157,27 +174,32 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         tau_min_vals(idx_tau_min),...
         m_vals(idx_m),...
         patience(idx_patience),...
-        tolerance(idx_tolerance)
+        tolerance(idx_tolerance),...
+        seed(idx_seed)
     };
+
+    fprintf('Miglior RMSE (validation): %.6f\n', bestScore1);
+    
 end
 
-function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL()
+function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL(retraining, filename)
     % Grid Values
     numHidden1_vals = [70]; 
-    numHidden2_vals = [40]; 
-    lambda_vals     = [1e-3]; 
+    numHidden2_vals = [50]; 
+    lambda_vals     = [1e-4]; 
     beta_vals       = [1e-2];
     delta_vals      = [1e-1];
-    R_vals          = [0.5];
+    R_vals          = [0.1];
     rho_vals        = [7e-1];
-    tau0_vals       = [0.1]; 
+    tau0_vals       = [1]; 
     tau_p_vals      = [200]; 
-    tau_f_vals      = [0.8]; 
+    tau_f_vals      = [0.9]; 
     tau_min_vals    = [1e-5]; 
-    m_vals          = [0.5]; 
-    patience        = [200];
-    tolerance       = [0.01];
+    m_vals          = [0.01]; 
+    patience        = [300];
+    tolerance       = [1e-4];
     activation_funs = ["tanh"];
+    seed            = [140 1000:2000];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -195,8 +217,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     nm  = numel(m_vals);
     np  = numel(patience);
     nt  = numel(tolerance);
+    ns  = numel(seed);
 
-    numCombo = n1*n2*na*nl*nb*nd*nR*nrho*nt0*ntp*ntf*ntm*nm*np*nt;
+    numCombo = n1*n2*na*nl*nb*nd*nR*nrho*nt0*ntp*ntf*ntm*nm*np*nt*ns;
     fprintf('\nTotal combinations: %d\n',numCombo);
     results1 = zeros(numCombo,1);
 
@@ -236,16 +259,28 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     rng(42);
     N = 12; M = 4;
     
-    arch_combos = unique([numHidden1_vals(:), numHidden2_vals(:)],'rows');
+    [H1, H2] = ndgrid(numHidden1_vals, numHidden2_vals);
+    arch_combos = [H1(:), H2(:)];
     
     init_weights = cell(size(arch_combos,1),1);
     
     for k = 1:size(arch_combos,1)
         h1_init = arch_combos(k,1);
         h2_init = arch_combos(k,2);
-        w.W1 = initXavier(h1_init,N);
-        w.W2 = initXavier(h2_init,h1_init);
-        w.W3 = initXavier(M,h2_init);
+        if retraining
+            data = load(filename);
+            model_sel = data.model;
+
+            w.W1 = model_sel.initial_weights.W1;
+            w.W2 = model_sel.initial_weights.W2;
+            w.W3 = model_sel.initial_weights.W3;
+        else     
+            for fold = 1:5
+                w.W1{fold} = initXavier(h1_init,N);
+                w.W2{fold} = initXavier(h2_init,h1_init);
+                w.W3{fold} = initXavier(M,h2_init);
+            end
+        end
         w.b1 = zeros(h1_init,1);
         w.b2 = zeros(h2_init,1);
         w.b3 = zeros(M,1);
@@ -260,9 +295,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
          idx_lambda,idx_beta,idx_delta,...
          idx_R,idx_rho,...
          idx_tau0,idx_tau_p,idx_tau_f,idx_tau_min,...
-         idx_m,idx_patience,idx_tolerance] = ...
+         idx_m,idx_patience,idx_tolerance, idx_seed] = ...
          ind2sub([n1 n2 na nl nb nd nR nrho ...
-                  nt0 ntp ntf ntm nm np nt],i);
+                  nt0 ntp ntf ntm nm np nt ns],i);
 
         % Extract parameters
         h1 = numHidden1_vals(idx_h1);
@@ -280,6 +315,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         m = m_vals(idx_m);
         pat = patience(idx_patience);
         tol = tolerance(idx_tolerance);
+        s = seed(idx_seed);
 
         arch_idx = find(arch_combos(:,1)==h1 & arch_combos(:,2)==h2);
         
@@ -290,7 +326,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
             lambda,beta,...
             delta,R,rho,...
             tau0,tau_p,tau_f,tau_min,...
-            m,pat,tol,w);
+            m,pat,tol,s,w);
 
         send(dq,i);
     end
@@ -303,9 +339,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
      idx_lambda,idx_beta,idx_delta,...
      idx_R,idx_rho,...
      idx_tau0,idx_tau_p,idx_tau_f,idx_tau_min,...
-     idx_m,idx_patience,idx_tolerance] = ...
+     idx_m,idx_patience,idx_tolerance,idx_seed] = ...
      ind2sub([n1 n2 na nl nb nd nR nrho ...
-              nt0 ntp ntf ntm nm np nt],bestIdx1);
+              nt0 ntp ntf ntm nm np nt ns],bestIdx1);
 
     bestParams1 = {
         numHidden1_vals(idx_h1),...
@@ -322,8 +358,12 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         tau_min_vals(idx_tau_min),...
         m_vals(idx_m),...
         patience(idx_patience),...
-        tolerance(idx_tolerance)
-    };
+        tolerance(idx_tolerance),...
+        seed(idx_seed)
+        };
+
+    fprintf('Miglior RMSE (validation): %.6f\n', bestScore1);
+
 end
 
 % Inizializzazione di Xavier (per tahn)
@@ -338,5 +378,5 @@ function W = initHe(n_out, n_in)
     W = randn(n_out, n_in) * sigma;
 end
 
-%grid_search_deflectedSubgradient_VolumeAndColorTV()
-grid_search_deflectedSubgradient_VolumeAndSGPTL()
+grid_search_deflectedSubgradient_VolumeAndColorTV(0, 'SGPTL1')
+% grid_search_deflectedSubgradient_VolumeAndSGPTL(0, 'SGPTL2')

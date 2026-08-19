@@ -1,4 +1,4 @@
-function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, init_w)
+function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -6,6 +6,8 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     if ~contains(path, libDir)
         addpath(genpath(libDir));
     end
+
+    rng(seed, 'twister');
 
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
@@ -96,9 +98,9 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         % NEURAL NETWORK CONFIGURATION (fully connected)
         % ====================================
 
-        W1 = init_w.W1;
-        W2 = init_w.W2;
-        W3 = init_w.W3;
+        W1 = init_w.W1{fold};
+        W2 = init_w.W2{fold};
+        W3 = init_w.W3{fold};
         b1 = init_w.b1;
         b2 = init_w.b2;
         b3 = init_w.b3;
@@ -168,7 +170,6 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         eps_d = 0;      
         tau = tau0;                 % threshold for gamma
         iter_since_tau = 0;         % counter to update tau
-        gamma = 1;                  % deflection parameter, at first stage only gradient
         gamma_prev = 1;
         alpha_prev = 1;
 
@@ -182,6 +183,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
    
             % Parameters initialization for first iteration
             if epoch == 1
+                delta = delta_init;
                 d_prev = g;
                 f_ref =  loss;
                 f_best =  loss;
@@ -190,7 +192,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
             %% Stepsize-Restricted Rule
                 
-            [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch);
+            [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch);
 
             fprintf('Epoch %d | gamma=%.9f | alpha=%.9f | loss=%.9f\n', epoch, gamma, alpha, loss);
 
@@ -296,7 +298,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
     model.beta = beta;
-    model.delta = delta;
+    model.delta = delta_init;
     model.R = R;
     model.rho = rho;
     model.tau0 = tau0;
@@ -311,6 +313,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.hidden1_activation = activation_function;
     model.hidden2_activation = activation_function;
     model.output_activation = 'linear';
+    model.seed = seed;
 
     model.initial_weights.W1 = init_W1;
     model.initial_weights.W2 = init_W2;
@@ -322,16 +325,20 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
     avg_best_val = mean(best_val_rmse); 
 
-    if avg_best_val < 0.7
+    if avg_best_val < 0.65
         
         modelsDir = fullfile(rootDir, 'models/SGPTL/stepsize');
         if ~exist(modelsDir, 'dir')
             mkdir(modelsDir);
         end
 
+        % ID univoco derivato dal thread/worker o UUID (non altera rng)
+        uuid_str = char(java.util.UUID.randomUUID);
+        unique_id = uuid_str(1:8);
+
         filename = fullfile(modelsDir, sprintf( ...
                 'SGPTL-h1-%d-h2-%d-lambda-%g_%d.mat', ...
-                numHidden1, numHidden2, lambda, randi(1e6)));
+                numHidden1, numHidden2, lambda, unique_id));
 
         save(filename, 'model');
 
@@ -344,7 +351,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     score = mean(best_val_rmse);
 end
 
-function [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch)
+function [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch)
     % Deflection()
     if epoch > 1
         num_gamma = eps_d - sigma - alpha_prev * (d_prev(:)' * (g - d_prev));

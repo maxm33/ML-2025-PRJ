@@ -1,4 +1,4 @@
-function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, activation_function, lambda, initial_beta, cg, cy, cr, tau0, tau_p, tau_f, tau_min, m_ss, patience, tolerance, init_w)
+function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, activation_function, lambda, initial_beta, cg, cy, cr, tau0, tau_p, tau_f, tau_min, m_ss, patience, tolerance, seed, init_w)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -6,6 +6,8 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
     if ~contains(path, libDir)
         addpath(genpath(libDir));
     end
+
+    rng(seed, 'twister');
 
     %% ===================================
     % LOADING TRAINING DATA (500 patterns)
@@ -95,9 +97,9 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
         % ====================================
 
         % Weights initialization
-        W1 = init_w.W1;
-        W2 = init_w.W2;
-        W3 = init_w.W3;
+        W1 = init_w.W1{fold};
+        W2 = init_w.W2{fold};
+        W3 = init_w.W3{fold};
         b1 = init_w.b1;
         b2 = init_w.b2;
         b3 = init_w.b3;
@@ -175,7 +177,6 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
         eps_d = 0;      
         tau = tau0;                 % threshold for gamma
         iter_since_tau = 0;         % counter to update tau
-        gamma = 1;                  % deflection parameter, at first stage only gradient
         gamma_prev = 1;
         alpha_prev = 1;
 
@@ -193,7 +194,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
 
             %% Stepsize-restricted Rule
             
-            [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch);
+            [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch);
                 
             fprintf('Epoch %d | gamma=%.9f | f_lev=%.6f | alpha=%.9f | loss=%.9f\n', epoch, gamma, f_lev, alpha, loss);
            
@@ -329,9 +330,13 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
             mkdir(modelsDir);
         end
 
+        % ID univoco derivato dal thread/worker o UUID (non altera rng)
+        uuid_str = char(java.util.UUID.randomUUID);
+        unique_id = uuid_str(1:8);
+
         filename = fullfile(modelsDir, sprintf( ...
                 'ColorTV-h1-%d-h2-%d-lambda-%g_%d.mat', ...
-                numHidden1, numHidden2, lambda, randi(1e6)));
+                numHidden1, numHidden2, lambda, unique_id));
 
         save(filename, 'model');
 
@@ -378,7 +383,7 @@ function [beta, ng, ny, nr, f_lev, f_rec] = ColorTVRule(loss, loss_prev, d_prev,
     end
 end
 
-function [alpha, d_curr] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch)
+function [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch)
     % Deflection()
     if epoch > 1
         num_gamma = eps_d - sigma - alpha_prev * (d_prev(:)' * (g - d_prev));

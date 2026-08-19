@@ -1,150 +1,154 @@
 rootDir = fileparts(mfilename('fullpath'));
 data = readmatrix(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
-dataTS = readmatrix(fullfile(rootDir, '..', '..', 'data', 'TS', 'ML-CUP25-TS.csv'));
 
 X = data(:, 2:13);
 Y = data(:, 14:17);
 
-X_ts = dataTS(:, 2:end);
+d = size(X, 2);          % numero di feature (12, senza bias)
+n_outputs = size(Y, 2);  % numero di output (4)
 
-% normalizza
-X_mean = mean(X);
-X_std = std(X);
+%% Hold-out: 80% training+validation, 20% test
+cv_outer = cvpartition(size(X,1), 'HoldOut', 0.2);
+trainval_idx = training(cv_outer);
+test_idx     = test(cv_outer);
 
-Xn = (X - X_mean) ./ X_std;
-Xts_n = (X_ts - X_mean) ./ X_std;
+X_trainval = X(trainval_idx, :);
+Y_trainval = Y(trainval_idx, :);
+X_test     = X(test_idx, :);
+Y_test     = Y(test_idx, :);
 
-Y_mean = mean(Y);
-Y_std = std(Y);
-Yn = (Y - Y_mean) ./ Y_std;
+%% Griglia di lambda da testare
+lambdas = [0, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1000, 10000];
 
-% inizializzo bias e pesi
-X_bias = [ones(size(Xn,1), 1), Xn];
+%% 5-fold Cross-Validation
+k = 5;
+cv = cvpartition(size(X_trainval,1), 'KFold', k);
 
-n_outputs = size(Yn, 2);
+rmse_train_folds = nan(length(lambdas), k);
+rmse_val_folds   = nan(length(lambdas), k);
 
-% utilizzo fattorizzazione QR
-lambdas = [0, 0.001, 0.1, 1, 10, 100, 1000, 10000];
 for i = 1:length(lambdas)
     lambda = lambdas(i);
-    n = size(X_bias, 2);
-    X_aug = [X_bias; sqrt(lambda) * eye(n)];
-    y_aug = [Yn; zeros(n, n_outputs)];
-    [Q, R] = computeThinQR(X_aug);
-    x = R \ (Q' * y_aug);
-    Y_pred = X_bias * x;
-    rmse = sqrt(mean((Y_pred - Yn).^2, 'all'));
-    fprintf('lambda = %8.3f | RMSE train = %.5f | norm(x) = %.5f\n', ...
-        lambda, rmse, norm(x));
-end
 
-figure;
-scatter3(Yn(:,1), Yn(:,2), Yn(:,3), 40, 'filled');
-title('Shape of Training Targets (Normalized)');
-xlabel('Output 1'); ylabel('Output 2'); zlabel('Output 3');
-grid on; 
+    for fold = 1:k
+        train_idx = training(cv, fold);
+        val_idx   = test(cv, fold);
 
-figure;
-scatter3(Y_pred(:,1), Y_pred(:,2), Y_pred(:,3), 40, 'filled');
-title('Predictions on Training Set (Normalized)');
-xlabel('Output 1'); ylabel('Output 2'); zlabel('Output 3');
-grid on; 
+        X_train_raw = X_trainval(train_idx, :);
+        X_val_raw   = X_trainval(val_idx, :);
+        Y_train_raw = Y_trainval(train_idx, :);
+        Y_val_raw   = Y_trainval(val_idx, :);
 
-for k = 1:n_outputs
-    figure; hold on;
-    scatter(Yn(:,k), Y_pred(:,k), 40, 'blue', 'filled');
-    x_vals = linspace(min(Yn(:,k)), max(Yn(:,k)), 200);
-    plot(x_vals, x_vals, 'r--', 'LineWidth', 2);
-    rmse = sqrt(mean((Y_pred(:,k) - Yn(:,k)).^2));
-    xlabel('True Target'); ylabel('Predicted Target');
-    title(['Output ' num2str(k) ' - True vs Predicted (Normalized) - RMSE = ' num2str(rmse)]);
-    grid on; axis equal;
-end
+        % --- Normalizzazione: statistiche calcolate SOLO sul training fold ---
+        X_mean = mean(X_train_raw);
+        X_std  = std(X_train_raw);
+        X_std  = max(X_std, 1e-8);
 
+        Y_mean = mean(Y_train_raw);
+        Y_std  = std(Y_train_raw);
+        Y_std  = max(Y_std, 1e-8);
 
-% Yts_pred_norm = Xts_bias * W; 
-% size(Xts_bias)
-% size(Y_std)
-% Yts_pred = Yts_pred_norm .* Y_std + Y_mean
+        Xn_train = (X_train_raw - X_mean) ./ X_std;
+        Xn_val   = (X_val_raw   - X_mean) ./ X_std;
 
-%per calcolare decomposizione QR totale
-function [Q, R] = computeQR(A)
+        Yn_train = (Y_train_raw - Y_mean) ./ Y_std;
+        Yn_val   = (Y_val_raw   - Y_mean) ./ Y_std;
 
-    [m, n] = size(A);
+        % Aggiunta colonna di bias
+        Xb_train = [ones(size(Xn_train,1),1), Xn_train];
+        Xb_val   = [ones(size(Xn_val,1),1),   Xn_val];
 
-    % caso base: n == 0
-    if n == 0
-        Q = eye(m);
-        R = [];
-        return;
+        n_samples = size(Xb_train, 1);  % numero di campioni nel training fold
+
+        % --- Matrice aumentata per ridge regression via QR ---
+        % Risolve min ||X*theta - Y||^2 + n_samples*lambda*||theta||^2
+        X_aug = [Xb_train; sqrt(n_samples * lambda) * eye(d+1)];
+        Y_aug = [Yn_train; zeros(d+1, n_outputs)];
+
+        [Q, R] = computeThinQR(X_aug);
+        theta = R \ (Q' * Y_aug);
+
+        % --- RMSE training ---
+        Yhat_train = Xb_train * theta;
+        rmse_train_folds(i, fold) = sqrt(mean((Yhat_train - Yn_train).^2, 'all'));
+
+        % --- RMSE validation ---
+        Yhat_val = Xb_val * theta;
+        rmse_val_folds(i, fold) = sqrt(mean((Yhat_val - Yn_val).^2, 'all'));
     end
-
-    % costruzione Householder sulla prima colonna
-    x = A(:,1);
-    s = -sign(x(1)) * norm(x);
-    e1 = zeros(m,1); 
-    e1(1) = s;
-    v = x - e1;
-    if norm(v) > 1e-12 %permette di controllare di non dividere per 0
-        v = v / norm(v);
-        H = eye(m) - 2*(v*v');
-    else
-        H = eye(m);
-    end
-
-    % applica trasformazione
-    A_sub = H*A;
-
-    % parte 2 della ricorsione
-    [Q_sub, R_sub] = computeQR(A_sub(2:end, 2:end));
-
-    R = [A_sub(1,1), A_sub(1,2:end);
-         zeros(m-1,1), R_sub];
-    Q = H * blkdiag(1, Q_sub);
 end
 
+% Media e deviazione standard sui fold
+rmse_train_mean = mean(rmse_train_folds, 2);
+rmse_train_std  = std(rmse_train_folds, 0, 2);
+rmse_val_mean   = mean(rmse_val_folds, 2);
+rmse_val_std    = std(rmse_val_folds, 0, 2);
 
+%% Stampa risultati
+fprintf('%10s | %12s | %12s | %12s | %12s\n', ...
+    'lambda', 'RMSE train', 'std train', 'RMSE val', 'std val');
+for i = 1:length(lambdas)
+    fprintf('%10.4f | %12.5f | %12.5f | %12.5f | %12.5f\n', ...
+        lambdas(i), rmse_train_mean(i), rmse_train_std(i), ...
+        rmse_val_mean(i), rmse_val_std(i));
+end
 
-%per calcolare decomposizione QR thin
+%% Selezione di lambda*: minimo errore medio di validazione
+[~, best_idx] = min(rmse_val_mean);
+lambda_star = lambdas(best_idx);
+fprintf('\nlambda* selezionato = %g (RMSE val = %.5f +/- %.5f)\n', ...
+    lambda_star, rmse_val_mean(best_idx), rmse_val_std(best_idx));
+
+%% Grafico: training vs validation RMSE al variare di lambda (scala log-log)
+figure;
+lambdas_plot = lambdas;
+lambdas_plot(lambdas_plot == 0) = 1e-6; % per poter usare scala log (lambda=0 non rappresentabile)
+
+errorbar(log10(lambdas_plot), rmse_train_mean, rmse_train_std, '-o', 'LineWidth', 1.5);
+hold on;
+errorbar(log10(lambdas_plot), rmse_val_mean, rmse_val_std, '-s', 'LineWidth', 1.5);
+xlabel('log_{10}(\lambda)');
+ylabel('RMSE (normalizzato)');
+legend('Training', 'Validation', 'Location', 'best');
+title('Model selection M2: RMSE training vs validation al variare di \lambda');
+grid on;
+
+exportgraphics(gcf, fullfile(rootDir, 'M2_model_selection.pdf'), 'ContentType', 'vector');
+
+%% Funzione: Thin QR via riflettori di Householder
 function [Q, R] = computeThinQR(A)
     [m, n] = size(A);
-    
-    % Caso base: se non ci sono più colonne da elaborare
+
     if n == 0
-        Q = zeros(m, 0); 
+        Q = zeros(m, 0);
         R = [];
         return;
     end
-    
-    % Costruzione del riflessore di Householder sulla prima colonna
+
     x = A(:,1);
     s = -sign(x(1)) * norm(x);
-    e1 = zeros(m,1); 
+    if s == 0
+        s = norm(x); % evita collasso dello shift se x(1) == 0
+    end
+    e1 = zeros(m,1);
     e1(1) = s;
     v = x - e1;
-    
+
     if norm(v) > 1e-12
         v = v / norm(v);
     else
         v = zeros(m,1);
     end
-    
-    % Applichiamo la trasformazione H = I - 2vv' ad A senza calcolare H esplicitamente
-    % H * A = A - 2 * v * (v' * A)
+
     A_transf = A - 2 * v * (v' * A);
-    
-    % Ricorsione sulla sottomatrice inferiore destra
+
     [Q_new, R_new] = computeThinQR(A_transf(2:end, 2:end));
-    
-    % 1. Ricostruzione di R (dimensione finale: n x n se m >= n)
+
     R = [A_transf(1,1), A_transf(1,2:end);
          zeros(n-1,1), R_new];
-         
-    % 2. Ricostruzione di Q (dimensione finale: m x n)
-    % Ricostruiamo la sottomatrice Q_sub aggiungendo la prima riga e colonna della base canonica
+
     Q_sub = [1, zeros(1, n-1);
              zeros(m-1, 1), Q_new];
-             
-    % Applichiamo il riflessore corrente H a Q_sub: H * Q_sub = Q_sub - 2 * v * (v' * Q_sub)
+
     Q = Q_sub - 2 * v * (v' * Q_sub);
 end
