@@ -38,7 +38,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.weights_best = struct([]);
     
     %% ACTIVATION FUNCTION (Leaky ReLU)
-    activation_function = 'tanh';
+    activation_function = 'leakyrelu';
     
     %% K-FOLD CROSS-VALIDATION LOOP
     cv = cvpartition(size(A_rest,1),'KFold',k);
@@ -186,7 +186,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     avg_best_val = mean(best_rmse_val, 'omitnan');
 
     %% CHECK WHETHER MODEL SHOULD BE SAVED
-    VAR_THRESHOLD       = 0.004;   % threshold for validation curve smoothness/stability (total variation)
+    VAR_THRESHOLD       = 0.005;   % threshold for validation curve smoothness/stability (total variation)
     OVERFIT_THRESHOLD   = 0.175;   % threshold for train-validation gap considered overfitting
     RMSE_THRESHOLD      = 0.65;    % maximum accepted normalized validation RMSE
     UNDERFIT_GAP        = 0.10;    % train-validation gap below which errors are considered similar
@@ -278,7 +278,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
         unique_id = uuid_str(1:8);
     
         filename = fullfile(modelsDir, sprintf( ...
-            'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%d.mat', ...
+            'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%s.mat', ...
             numHidden1, numHidden2, eta, lambda, alpha, batch_size, unique_id));
     
         save(filename, 'model');

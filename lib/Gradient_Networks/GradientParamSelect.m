@@ -3,7 +3,7 @@ clear; clc;
 
 % Percorso della cartella
 currentDir = fileparts(mfilename('fullpath'));
-folderPath = fullfile(currentDir, '..', '..', 'CM', 'src', 'models');
+folderPath = fullfile(currentDir, '..', '..', 'CM', 'src', 'models', 'Gradient');
 
 % Definizione dei parametri da monitorare (nomi usati nel tuo salvataggio)
 paramNames = {'numHidden1', 'numHidden2', 'lambda', 'eta', 'alpha', 'batch_size'};
@@ -57,19 +57,19 @@ resTable = struct2table([dataCell{:}]);
 % Ordina per RMSE crescente
 resTable = sortrows(resTable, 'RMSE_Val', 'ascend');
 
-% Top 20
-numToExtract = min(20, size(resTable, 1));
-top20 = resTable(1:numToExtract, :);
+% Top 50
+numToExtract = min(50, size(resTable, 1));
+top50 = resTable(1:numToExtract, :);
 
 fprintf('\n--- TOP %d MODELLI ESTRATTI ---\n', numToExtract);
-disp(top20(:, {'FileName', 'RMSE_Val'}));
+disp(top50(:, {'FileName', 'RMSE_Val'}));
 
-%% Analisi delle frequenze sui Top 20
+%% Analisi delle frequenze sui Top 50
 fprintf('\n--- ANALISI FREQUENZE NEI TOP %d ---\n', numToExtract);
 
 for i = 1:length(paramNames)
     pName = paramNames{i};
-    values = top20.(pName);
+    values = top50.(pName);
     
     % Gestione robusta per trovare i valori più frequenti
     [uniqueVals, ~, idxGroup] = unique(values);
@@ -82,5 +82,5 @@ for i = 1:length(paramNames)
     for v = 1:length(uniqueVals)
         fprintf('  - Valore %g: %d volte\n', uniqueVals(v), counts(v));
     end
-    fprintf('  >> VINCITORE (Moda): %g (%d/20)\n\n', mostFrequent, maxCount);
+    fprintf('  >> VINCITORE (Moda): %g (%d/50)\n\n', mostFrequent, maxCount);
 end
