@@ -81,7 +81,7 @@ function [bestParams, bestScore] = grid_search_mb()
 
         % Train network
         results(i) = Neural_Network_minibatch( ...
-            h1, h2, activation, eta, lambda, alpha, batch, s);
+            h1, h2, activation, eta, lambda, alpha, batch, s, [], []);
 
         % Notify progress
         send(dq, i);

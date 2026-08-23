@@ -1,4 +1,4 @@
-function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_function, eta, lambda, alpha, batch_size, seed)
+function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_function, eta, lambda, alpha, batch_size, seed, initWeights, normalization)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -53,7 +53,19 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
         B_vl = B_rest(idx_vl,:);
         
         % NORMALIZATION
-        [A_tr_norm, A_vl_norm, B_tr_norm, B_vl_norm, muA, stdA, muB, stdB] = NormalizeDatasets(A_tr, B_tr, A_vl, B_vl);
+        if isempty(normalization)
+            [A_tr_norm, A_vl_norm, B_tr_norm, B_vl_norm, muA, stdA, muB, stdB] = NormalizeDatasets(A_tr, B_tr, A_vl, B_vl);
+        else
+            muA = normalization(fold).muA;
+            stdA = normalization(fold).stdA;
+            muB = normalization(fold).muB;
+            stdB = normalization(fold).stdB;
+
+            A_tr_norm = (A_tr - muA) ./ stdA;
+            A_vl_norm = (A_vl - muA) ./ stdA;
+            B_tr_norm = (B_tr - muB) ./ stdB;
+            B_vl_norm = (B_vl - muB) ./ stdB;
+        end
 
         % Save normalization parameters for replicability
         model.norm(fold).muA = muA;
@@ -64,7 +76,23 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
         P_tr = size(A_tr,1);
         
         % HE-KAIMING WEIGHTS INITIALIZATION
-        [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientInitializeWeights(numHidden1, numHidden2, N, M);
+        if isempty(initWeights)
+            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientInitializeWeights(numHidden1, numHidden2, N, M);
+        else
+            W1 = initWeights(fold).W1;
+            W2 = initWeights(fold).W2;
+            W3 = initWeights(fold).W3;
+            b1 = initWeights(fold).b1;
+            b2 = initWeights(fold).b2;
+            b3 = initWeights(fold).b3;
+
+            vel_W1 = zeros(size(W1));
+            vel_W2 = zeros(size(W2));
+            vel_W3 = zeros(size(W3));
+            vel_b1 = zeros(size(b1));
+            vel_b2 = zeros(size(b2));
+            vel_b3 = zeros(size(b3));
+        end
         
         % SAVE INITIAL WEIGHTS
         model.weights_init(fold).W1 = W1;
@@ -172,6 +200,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
     model.activation = activation_function;
+    model.seed = seed;
 
     model.rmse_train = mean(best_rmse_train, 'omitnan');
     model.rmse_val = mean(best_rmse_val, 'omitnan');
