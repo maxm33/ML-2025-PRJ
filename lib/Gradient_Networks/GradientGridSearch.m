@@ -2,6 +2,7 @@ function [bestParams, bestScore] = grid_search_mb()
     % Grid Values
     numHidden1_vals = [70 60 50 40];
     numHidden2_vals = [70 60 50 40];
+    activation_vals = {'tanh', 'leakyrelu'};
     eta_vals        = [7e-2 5e-2 3e-2 1e-2 7e-3 5e-3 3e-3 1e-3 5e-4 1e-4];
     lambda_vals     = [1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 1e-5];
     alpha_vals      = [0.95 0.9 0.8 0.75 0.7];
@@ -11,13 +12,14 @@ function [bestParams, bestScore] = grid_search_mb()
     % Number of combinations
     n1 = numel(numHidden1_vals);
     n2 = numel(numHidden2_vals);
+    naf = numel(activation_vals);
     ne = numel(eta_vals);
     nl = numel(lambda_vals);
     na = numel(alpha_vals);
     nb = numel(batch_vals);
     ns = numel(seed);
 
-    numCombo = n1*n2*ne*nl*na*nb*ns;
+    numCombo = n1*n2*naf*ne*nl*na*nb*ns;
     fprintf('\nTotal combinations: %d\n', numCombo);
     results = zeros(numCombo,1);
 
@@ -46,9 +48,14 @@ function [bestParams, bestScore] = grid_search_mb()
             % Estimate remaining time
             rate = completed/elapsed;           % combinations per second
             estimated = (numCombo-completed)/rate;
-    
-            fprintf('\rCompleted: %d/%d (%.2f%%) | Elapsed: %.1f min(s) / %.1f hour(s) | ETA: %.1f min(s) / %.1f hour(s)', ...
-                completed, numCombo, percent, elapsed/60, elapsed/3600, estimated/60, estimated/3600);
+
+            fprintf(['\rCompleted: %d/%d (%.2f%%) | ' ...
+                     'Elapsed: %.1f min(s) / %.1f hour(s) | ' ...
+                     'ETA: %.1f min(s) / %.1f hour(s)'], ...
+                completed, numCombo, ...
+                percent, ...
+                elapsed/60, elapsed/3600, ...
+                estimated/60, estimated/3600);
         end
     end
     
@@ -58,20 +65,24 @@ function [bestParams, bestScore] = grid_search_mb()
     parfor i = 1:numCombo
     
         % Convert linear index into parameter indices
-        [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch, idx_seed] = ind2sub([n1 n2 ne nl na nb ns], i);
-    
+        [idx_h1, idx_h2, idx_af, idx_eta, idx_lambda, ...
+            idx_alpha, idx_batch, idx_seed] = ...
+            ind2sub([n1 n2 naf ne nl na nb ns], i);
+
         % Extract parameters
-        h1      = numHidden1_vals(idx_h1);
-        h2      = numHidden2_vals(idx_h2);
-        eta     = eta_vals(idx_eta);
-        lambda  = lambda_vals(idx_lambda);
-        alpha   = alpha_vals(idx_alpha);
-        batch   = batch_vals(idx_batch);
-        s       = seed(idx_seed);
-    
+        h1         = numHidden1_vals(idx_h1);
+        h2         = numHidden2_vals(idx_h2);
+        activation = activation_vals{idx_af};
+        eta        = eta_vals(idx_eta);
+        lambda     = lambda_vals(idx_lambda);
+        alpha      = alpha_vals(idx_alpha);
+        batch      = batch_vals(idx_batch);
+        s          = seed(idx_seed);
+
         % Train network
-        results(i) = Neural_Network_minibatch(h1, h2, eta, lambda, alpha, batch, s);
-    
+        results(i) = Neural_Network_minibatch( ...
+            h1, h2, activation, eta, lambda, alpha, batch, s);
+
         % Notify progress
         send(dq, i);
     end
@@ -80,26 +91,30 @@ function [bestParams, bestScore] = grid_search_mb()
     [bestScore, bestIdx] = min(results);
 
     % Recover best parameters
-    [idx_h1, idx_h2, idx_eta, idx_lambda, idx_alpha, idx_batch, idx_seed] = ind2sub([n1 n2 ne nl na nb ns], bestIdx);
+    [idx_h1, idx_h2, idx_af, idx_eta, idx_lambda, ...
+        idx_alpha, idx_batch, idx_seed] = ...
+        ind2sub([n1 n2 naf ne nl na nb ns], bestIdx);
 
-    bestParams = [
+    bestParams = {
         numHidden1_vals(idx_h1), ...
         numHidden2_vals(idx_h2), ...
+        activation_vals{idx_af}, ...
         eta_vals(idx_eta), ...
         lambda_vals(idx_lambda), ...
         alpha_vals(idx_alpha), ...
         batch_vals(idx_batch), ...
         seed(idx_seed)
-    ];
+    };
 
-    fprintf('\nBest parameters:\n');
-    fprintf('Hidden1: %d\n', bestParams(1));
-    fprintf('Hidden2: %d\n', bestParams(2));
-    fprintf('Eta: %.6f\n', bestParams(3));
-    fprintf('Lambda: %.6f\n', bestParams(4));
-    fprintf('Alpha: %.2f\n', bestParams(5));
-    fprintf('Batch: %d\n', bestParams(6));
-    fprintf('Seed: %d\n', bestParams(7));
+    fprintf('\n\nBest parameters:\n');
+    fprintf('Hidden1: %d\n', bestParams{1});
+    fprintf('Hidden2: %d\n', bestParams{2});
+    fprintf('Activation: %s\n', bestParams{3});
+    fprintf('Eta: %.6f\n', bestParams{4});
+    fprintf('Lambda: %.6f\n', bestParams{5});
+    fprintf('Alpha: %.2f\n', bestParams{6});
+    fprintf('Batch: %d\n', bestParams{7});
+    fprintf('Seed: %d\n', bestParams{8});
     fprintf('Best score: %.6f\n', bestScore);
 end
 

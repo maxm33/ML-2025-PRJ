@@ -1,4 +1,4 @@
-function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, alpha, batch_size, seed)
+function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_function, eta, lambda, alpha, batch_size, seed)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -20,7 +20,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
-    patience = 200; tolerance = 1e-2; maxEpochs = 10000;
+    patience = 300; tolerance = 1e-4; maxEpochs = 10000;
     
     %% PERFOMANCE PARAMETERS
 
@@ -36,10 +36,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.weights_init = struct([]);
     model.weights_final = struct([]);
     model.weights_best = struct([]);
-    
-    %% ACTIVATION FUNCTION (Leaky ReLU)
-    activation_function = 'leakyrelu';
-    
+
     %% K-FOLD CROSS-VALIDATION LOOP
     cv = cvpartition(size(A_rest,1),'KFold',k);
 
@@ -167,14 +164,6 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     
     %% SAVE REST OF MODEL'S DATA
     model.training_time = posixtime(datetime('now')) - training_start_time;
-
-    model.rmse_train = mean(best_rmse_train, 'omitnan');
-    model.rmse_val = mean(best_rmse_val, 'omitnan');
-    model.rmse_test = mean(best_rmse_test, 'omitnan');
-    
-    model.rmse_train_curve = rmse_train;
-    model.rmse_val_curve = rmse_val;
-    model.rmse_test_curve = rmse_test;
     
     model.eta = eta;
     model.alpha = alpha;
@@ -182,6 +171,15 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     model.batch_size = batch_size;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
+    model.activation = activation_function;
+
+    model.rmse_train = mean(best_rmse_train, 'omitnan');
+    model.rmse_val = mean(best_rmse_val, 'omitnan');
+    model.rmse_test = mean(best_rmse_test, 'omitnan');
+
+    model.rmse_train_curve = rmse_train;
+    model.rmse_val_curve = rmse_val;
+    model.rmse_test_curve = rmse_test;
 
     avg_best_val = mean(best_rmse_val, 'omitnan');
 
