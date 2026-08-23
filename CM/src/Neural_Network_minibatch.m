@@ -20,7 +20,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, eta, lambda, a
     [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
 
     %% EARLY-STOPPING SETTINGS
-    patience = 300; tolerance = 1e-4; maxEpochs = 10000;
+    patience = 200; tolerance = 1e-2; maxEpochs = 10000;
     
     %% PERFOMANCE PARAMETERS
 

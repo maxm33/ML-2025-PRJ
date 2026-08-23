@@ -1,18 +1,18 @@
 function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV(retraining, filename)
 
     % Grid Values
-    numHidden1_vals = [70];     
-    numHidden2_vals = [50];     
-    lambda_vals     = [1e-4];   
-    beta_vals       = [0.01];    % minore di 0.0005 troppo lento, maggiore di 0.002 troppo veloce
-    cg_vals         = [150];    % 50 valore ottimo per ora
-    cy_vals         = [200];    % sembra poco importante, fisso a 400 
-    cr_vals         = [3];     % 10 sembra il migliore 
-    tau0_vals       = [1];      % cambia poco,lo fisso a 1
+    numHidden1_vals = [70];    %ottimale per ColorTV 
+    numHidden2_vals = [50];    %ottimale per ColorTV
+    lambda_vals     = [1e-3 1e-4 1e-5];   
+    beta_vals       = [1e-3 5e-4 1e-4 5e-5];    % minore di 0.0005 troppo lento, maggiore di 0.002 troppo veloce
+    cg_vals         = [175 200 225 250];    % 50 valore ottimo per ora
+    cy_vals         = [200 400];    % sembra poco importante, fisso a 400 
+    cr_vals         = [3 5 10 20];     % 10 sembra il migliore 
+    tau0_vals       = [0.1 0.5 1];      % cambia poco,lo fisso a 1
     tau_p_vals      = [200];    % ben distribuite
     tau_f_vals      = [0.9];    % è uguale
     tau_min_vals    = [1e-5];   % questo è un floor raramente raggiunto
-    m_vals          = [0.01];    % da 0.01 in giu
+    m_vals          = [0.1 0.05 0.01 0.005];    % da 0.01 in giu
     patience        = [300];
     tolerance       = [1e-4];
     activation_funs = ["tanh"];
@@ -56,18 +56,18 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         completed = completed + 1;
         elapsed = toc(tStart);
     
-        % Print every 120 seconds
-        if elapsed - lastPrint >= 120 || completed == numCombo
-            
+        % Stampa la prima iterazione (così vedi subito che è partito), 
+        % poi ogni 5 minuti (300 sec), oppure alla fine.
+        if completed == 1 || elapsed - lastPrint >= 300 || completed == numCombo
             lastPrint = elapsed;
-            percent = 100*completed/numCombo;
+            percent = 100 * completed / numCombo;
+            rate = completed / elapsed;           
+            estimated = (numCombo - completed) / rate;
     
-            % Estimate remaining time
-            rate = completed/elapsed;           % combinations per second
-            estimated = (numCombo-completed)/rate;
-    
-            fprintf('\rCompleted: %d/%d (%.2f%%) | Elapsed: %.1f min(s) / %.1f hour(s) | ETA: %.1f min(s) / %.1f hour(s)', ...
-                completed, numCombo, percent, elapsed/60, elapsed/3600, estimated/60, estimated/3600);
+            % Usare \n al posto di \r e forzare drawnow garantisce che il log compaia subito
+            fprintf('ColorTV Progress: %d/%d (%.2f%%) | Elapsed: %.1f min | ETA: %.1f min\n', ...
+                completed, numCombo, percent, elapsed/60, estimated/60);
+            drawnow('update');
         end
     end
 
@@ -94,9 +94,15 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
             w.W3 = model_sel.initial_weights.W3;
         else     
             for fold = 1:5
-                w.W1{fold} = initXavier(h1_init,N);
-                w.W2{fold} = initXavier(h2_init,h1_init);
-                w.W3{fold} = initXavier(M,h2_init);
+                if activation_funs(1) == "leakyrelu"
+                    w.W1{fold} = initHe(h1_init,N);
+                    w.W2{fold} = initHe(h2_init,h1_init);
+                    w.W3{fold} = initHe(M,h2_init);
+                elseif activation_funs(1) == "tanh"
+                    w.W1{fold} = initXavier(h1_init,N);
+                    w.W2{fold} = initXavier(h2_init,h1_init);
+                    w.W3{fold} = initXavier(M,h2_init);
+                end
             end
         end
         w.b1 = zeros(h1_init,1);
@@ -179,27 +185,27 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     };
 
     fprintf('Miglior RMSE (validation): %.6f\n', bestScore1);
-    
+
 end
 
 function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL(retraining, filename)
     % Grid Values
-    numHidden1_vals = [70]; 
-    numHidden2_vals = [50]; 
-    lambda_vals     = [1e-4]; 
-    beta_vals       = [1e-2];
-    delta_vals      = [1e-1];
-    R_vals          = [0.1];
-    rho_vals        = [7e-1];
-    tau0_vals       = [1]; 
-    tau_p_vals      = [200]; 
+    numHidden1_vals = [70]; %ottimali per gradiente
+    numHidden2_vals = [50]; %ottimali per gradiente
+    lambda_vals     = [1e-4 1e-5]; %ottimale per sottogradiente
+    beta_vals       = [3e-2]; %ottimo
+    delta_vals      = [1e-1]; %ottimo
+    R_vals          = [0.05]; %ottimo
+    rho_vals        = [7e-1 5e-1]; 
+    tau0_vals       = [0.1]; 
+    tau_p_vals      = [100]; 
     tau_f_vals      = [0.9]; 
     tau_min_vals    = [1e-5]; 
-    m_vals          = [0.01]; 
+    m_vals          = [0.1]; 
     patience        = [300];
     tolerance       = [1e-4];
     activation_funs = ["tanh"];
-    seed            = [140 1000:2000];
+    seed            = [1932];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -239,24 +245,22 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         completed = completed + 1;
         elapsed = toc(tStart);
     
-        % Print every 120 seconds
-        if elapsed - lastPrint >= 120 || completed == numCombo
-            
+        % Stampa la prima iterazione poi ogni 5 minuti (300 sec), oppure alla fine.
+        if completed == 1 || elapsed - lastPrint >= 300 || completed == numCombo
             lastPrint = elapsed;
-            percent = 100*completed/numCombo;
+            percent = 100 * completed / numCombo;
+            rate = completed / elapsed;           
+            estimated = (numCombo - completed) / rate;
     
-            % Estimate remaining time
-            rate = completed/elapsed;           % combinations per second
-            estimated = (numCombo-completed)/rate;
-    
-            fprintf('\rCompleted: %d/%d (%.2f%%) | Elapsed: %.1f min(s) / %.1f hour(s) | ETA: %.1f min(s) / %.1f hour(s)', ...
-                completed, numCombo, percent, elapsed/60, elapsed/3600, estimated/60, estimated/3600);
+            % Usare \n al posto di \r e forzare drawnow garantisce che il log compaia subito
+            fprintf('SGPTL Progress: %d/%d (%.2f%%) | Elapsed: %.1f min | ETA: %.1f min\n', ...
+                completed, numCombo, percent, elapsed/60, estimated/60);
+            drawnow('update');
         end
     end
 
     fprintf('\nStarting grid search...\n');
 
-    rng(42);
     N = 12; M = 4;
     
     [H1, H2] = ndgrid(numHidden1_vals, numHidden2_vals);
@@ -276,9 +280,15 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
             w.W3 = model_sel.initial_weights.W3;
         else     
             for fold = 1:5
-                w.W1{fold} = initXavier(h1_init,N);
-                w.W2{fold} = initXavier(h2_init,h1_init);
-                w.W3{fold} = initXavier(M,h2_init);
+                if activation_funs(1) == "leakyrelu"
+                    w.W1{fold} = initHe(h1_init,N);
+                    w.W2{fold} = initHe(h2_init,h1_init);
+                    w.W3{fold} = initHe(M,h2_init);
+                elseif activation_funs(1) == "tanh"
+                    w.W1{fold} = initXavier(h1_init,N);
+                    w.W2{fold} = initXavier(h2_init,h1_init);
+                    w.W3{fold} = initXavier(M,h2_init);
+                end
             end
         end
         w.b1 = zeros(h1_init,1);
@@ -378,5 +388,5 @@ function W = initHe(n_out, n_in)
     W = randn(n_out, n_in) * sigma;
 end
 
-grid_search_deflectedSubgradient_VolumeAndColorTV(0, 'SGPTL1')
-% grid_search_deflectedSubgradient_VolumeAndSGPTL(0, 'SGPTL2')
+% grid_search_deflectedSubgradient_VolumeAndColorTV(0, 'SGPTL1')
+grid_search_deflectedSubgradient_VolumeAndSGPTL(1, 'ColorTV1')

@@ -194,7 +194,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
                 
             [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_ref, delta, loss, epoch);
 
-            fprintf('Epoch %d | gamma=%.9f | alpha=%.9f | loss=%.9f\n', epoch, gamma, alpha, loss);
+            %fprintf('Epoch %d | gamma=%.9f | alpha=%.9f | loss=%.9f\n', epoch, gamma, alpha, loss);
 
             %% Weights update
             
@@ -250,7 +250,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
             if epochs_since_improvement >= patience
                 final_epoch(fold)= epoch;
-                fprintf("EARLY STOP at epoch %d  | RMSE (norm) = %.6f \n", epoch, best_val_rmse(fold));
+                % fprintf("EARLY STOP at epoch %d  | RMSE (norm) = %.6f \n", epoch, best_val_rmse(fold));
                 break;
             end
 
@@ -325,7 +325,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
     avg_best_val = mean(best_val_rmse); 
 
-    if avg_best_val < 0.65
+    if avg_best_val < 0.62
         
         modelsDir = fullfile(rootDir, 'models/SGPTL/stepsize');
         if ~exist(modelsDir, 'dir')
@@ -337,7 +337,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         unique_id = uuid_str(1:8);
 
         filename = fullfile(modelsDir, sprintf( ...
-                'SGPTL-h1-%d-h2-%d-lambda-%g_%d.mat', ...
+                'SGPTL-h1-%d-h2-%d-lambda-%g_%s.mat', ...
                 numHidden1, numHidden2, lambda, unique_id));
 
         save(filename, 'model');

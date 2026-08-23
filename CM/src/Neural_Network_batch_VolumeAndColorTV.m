@@ -323,7 +323,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
 
     avg_best_val = mean(best_val_rmse); 
 
-    if avg_best_val < 0.7
+    if avg_best_val < 0.62
 
         modelsDir = fullfile(rootDir, 'models/ColorTV_Volume/stepsize');
         if ~exist(modelsDir, 'dir')
@@ -335,7 +335,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
         unique_id = uuid_str(1:8);
 
         filename = fullfile(modelsDir, sprintf( ...
-                'ColorTV-h1-%d-h2-%d-lambda-%g_%d.mat', ...
+                'ColorTV-h1-%d-h2-%d-lambda-%g_%s.mat', ...
                 numHidden1, numHidden2, lambda, unique_id));
 
         save(filename, 'model');
