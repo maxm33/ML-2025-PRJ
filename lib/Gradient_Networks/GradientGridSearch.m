@@ -1,12 +1,12 @@
 function [bestParams, bestScore] = grid_search_mb()
     % Grid Values
-    numHidden1_vals = [80];
-    numHidden2_vals = [60];
-    eta_vals        = [1e-2];
-    lambda_vals     = [1e-3];
-    alpha_vals      = [0.8];
-    batch_vals      = [125 250];
-    seed            = [400:500 1932];
+    numHidden1_vals = [70 60 50 40];
+    numHidden2_vals = [70 60 50 40];
+    eta_vals        = [7e-2 5e-2 3e-2 1e-2 7e-3 5e-3 3e-3 1e-3 5e-4 1e-4];
+    lambda_vals     = [1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 1e-5];
+    alpha_vals      = [0.95 0.9 0.8 0.75 0.7];
+    batch_vals      = [400 200 100];
+    seed            = [1932];
 
     % Number of combinations
     n1 = numel(numHidden1_vals);
