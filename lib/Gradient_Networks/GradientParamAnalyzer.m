@@ -1,54 +1,60 @@
-path = 'h1-40-h2-70-eta-0.005-lambda-0.1-alpha-0.75-batch-400_f61f74ed.mat';
-loaded = load(path, 'model');
-previousModel = loaded.model;
+paths = {
+    'ColorTV1.mat'
+    'ColorTV2.mat'
+    'ColorTV3.mat'
+};
 
-numHidden1 = previousModel.numHidden1;
-numHidden2 = previousModel.numHidden2;
-eta = previousModel.eta;
-lambda = previousModel.lambda;
-activation = previousModel.activation;
-seed = previousModel.seed;
-initWeights = previousModel.weights_init;
-normalization = previousModel.norm;
-
-alpha_vals = [0.99 0.9 0.75 0.5 0.0];
+alpha = 0.90;
+eta = 0.007;
 batch = 400;
 
 if isempty(gcp('nocreate'))
     parpool;
 end
 
-results = nan(numel(alpha_vals), 1);
+results = nan(numel(paths), 1);
 
-parfor i = 1:numel(alpha_vals)
+parfor i = 1:numel(paths)
 
-    alpha = alpha_vals(i);
+    % Load starting model
+    loaded = load(paths{i}, 'model');
+    previousModel = loaded.model;
+
+    numHidden1 = previousModel.numHidden1;
+    numHidden2 = previousModel.numHidden2;
+    lambda = previousModel.lambda;
+    initWeights = previousModel.initial_weights;
 
     results(i) = Neural_Network_minibatch( ...
-        numHidden1, numHidden2, activation, ...
-        eta, lambda, alpha, batch, seed, ...
-        initWeights, normalization);
+        numHidden1, numHidden2, "tanh", ...
+        eta, lambda, alpha, batch, 1932, ...
+        initWeights, []);
 
-    fprintf('\nalpha = %.2f | Score = %.6f\n', ...
-        alpha, results(i));
+    fprintf('\npath %d | alpha = %.2f | Score = %.6f\n', ...
+        i, alpha, results(i));
 end
 
 %% LOAD VALIDATION CURVES
 
-validation_curves = cell(numel(alpha_vals), 1);
+validation_curves = cell(numel(paths), 1);
 currDir = fileparts(mfilename('fullpath'));
 modelsDir = fullfile(currDir, '..', '..', 'CM', 'src', 'models', 'Gradient');
 
-for i = 1:numel(alpha_vals)
+for i = 1:numel(paths)
 
-    alpha = alpha_vals(i);
+    loaded = load(paths{i}, 'model');
+    previousModel = loaded.model;
+
+    numHidden1 = previousModel.numHidden1;
+    numHidden2 = previousModel.numHidden2;
+    lambda = previousModel.lambda;
 
     files = dir(fullfile(modelsDir, ...
         sprintf('h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_*.mat', ...
         numHidden1, numHidden2, eta, lambda, alpha, batch)));
 
     if isempty(files)
-        warning('Nessun modello trovato per alpha = %.2f', alpha);
+        warning('Nessun modello trovato per path %d', i);
         continue;
     end
 
@@ -65,9 +71,9 @@ end
 figure('Visible', 'off');
 hold on;
 
-colors = lines(numel(alpha_vals));
+colors = lines(numel(paths));
 
-for i = 1:numel(alpha_vals)
+for i = 1:numel(paths)
 
     if isempty(validation_curves{i})
         continue;
@@ -92,12 +98,12 @@ for i = 1:numel(alpha_vals)
     plot(1:last_epoch, curve, ...
         'Color', colors(i,:), ...
         'LineWidth', 1.5, ...
-        'DisplayName', sprintf('\\alpha = %.2f', alpha_vals(i)));
+        'DisplayName', sprintf('Run %d', i));
 end
 
 xlabel('Epoch');
 ylabel('Validation RMSE');
-title('Validation Curves over \alpha | batch=400 (Full Batch)');
+title('ColorTV vs Heavy Ball');
 
 ylim([0.4 1]);
 
@@ -106,7 +112,7 @@ grid on;
 hold off;
 
 exportgraphics(gcf, ...
-    'validation_curves_alpha_batch400.png', ...
+    'colortv_vs_heavyball.png', ...
     'Resolution', 300);
 
 close(gcf);
