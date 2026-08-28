@@ -2,9 +2,14 @@ clear;
 close all;
 clc;
 
-[lambda_star, results, computeThinQR] = Least_Squares_QR();
-
+%% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
 rootDir = fileparts(mfilename('fullpath'));
+libDir = fullfile(rootDir, '..', '..', 'CM');
+if ~contains(path, libDir)
+    addpath(genpath(libDir));
+end
+
+[lambda_star, results, computeThinQR] = Least_Squares_QR();
 data = readmatrix(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
 
 X = data(:, 2:13);
