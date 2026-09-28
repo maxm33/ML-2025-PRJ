@@ -17,7 +17,7 @@ function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_
     patience_vals   = [Inf];
     tolerance_vals  = [0];
     maxEpochs_vals  = [40000 80000 160000 200000];
-    seed_vals       = [679, 42, 123, 1024, 2026, 31415, 271828, 161803, 98765, 55555];
+    seed_vals       = [679, 42, 123, 1024, 1932, 2026, 31415, 271828, 161803, 98765, 55555];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
