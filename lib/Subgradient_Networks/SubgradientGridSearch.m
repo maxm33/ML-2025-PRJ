@@ -3,7 +3,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     % Grid Values
     numHidden1_vals = [70];    %ottimale per ColorTV 
     numHidden2_vals = [50];    %ottimale per ColorTV
-    lambda_vals     = [1e-3 1e-4 1e-5];   
+    lambda_vals     = [1e-2 1e-3 5e-3 1e-4 1e-5 1e-6 1e-7];   
     beta_vals       = [1e-3 5e-4 1e-4 5e-5];    % minore di 0.0005 troppo lento, maggiore di 0.002 troppo veloce
     cg_vals         = [175 200 225 250];    % 50 valore ottimo per ora
     cy_vals         = [200 400];    % sembra poco importante, fisso a 400 
@@ -196,7 +196,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     % Grid Values
     numHidden1_vals = [70]; %ottimali per gradiente
     numHidden2_vals = [50]; %ottimali per gradiente
-    lambda_vals     = [1e-4 1e-5]; %ottimale per sottogradiente
+    lambda_vals     = [1e-2 1e-3 5e-3 1e-4 1e-5 1e-6 1e-7];
     beta_vals       = [3e-2]; %ottimo
     delta_vals      = [1e-1]; %ottimo
     R_vals          = [0.05]; %ottimo
