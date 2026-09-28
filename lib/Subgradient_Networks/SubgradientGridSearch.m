@@ -1,4 +1,4 @@
-function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV(retraining, filename)
+function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV(retraining, model_path)
 
     % Grid Values
     numHidden1_vals = [70];    %ottimale per ColorTV 
@@ -13,10 +13,11 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     tau_f_vals      = [0.9];    % è uguale
     tau_min_vals    = [1e-5];   % questo è un floor raramente raggiunto
     m_vals          = [0.1 0.05 0.01 0.005];    % da 0.01 in giu
-    patience        = [300];
-    tolerance       = [1e-4];
-    activation_funs = ["tanh"];
-    seed            = [1932];
+    patience        = [Inf];
+    tolerance       = [0];
+    maxEpochs_vals  = [40000 80000 160000 200000];
+    activation_funs = ["leakyrelu"];
+    seed            = [679, 42, 123, 1024, 2026, 31415, 271828, 161803, 98765, 55555];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -34,9 +35,10 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     nm  = numel(m_vals);
     np  = numel(patience);
     nt  = numel(tolerance);
+    nmaxEpochs = numel(maxEpochs_vals);
     ns  = numel(seed);
 
-    numCombo = n1*n2*na*nl*nb*ncg*ncy*ncr*nt0*ntp*ntf*ntm*nm*np*nt*ns;
+    numCombo = n1*n2*na*nl*nb*ncg*ncy*ncr*nt0*ntp*ntf*ntm*nm*np*nt*nmaxEpochs*ns;
     fprintf('\nTotal combinations: %d\n',numCombo);
     results1 = zeros(numCombo,1);
 
@@ -86,12 +88,12 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         h1_init = arch_combos(k,1);
         h2_init = arch_combos(k,2);
         if retraining
-            data = load(filename);
+            data = load(model_path);
             model_sel = data.model;
 
-            w.W1 = model_sel.initial_weights.W1;
-            w.W2 = model_sel.initial_weights.W2;
-            w.W3 = model_sel.initial_weights.W3;
+            w.W1 = model_sel.weights_init.W1;
+            w.W2 = model_sel.weights_init.W2;
+            w.W3 = model_sel.weights_init.W3;
         else     
             for fold = 1:5
                 if activation_funs(1) == "leakyrelu"
@@ -118,9 +120,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         [idx_h1, idx_h2, idx_fun, idx_lambda, idx_beta,...
          idx_cg, idx_cy, idx_cr,...
          idx_tau0, idx_tau_p, idx_tau_f, idx_tau_min,...
-         idx_m, idx_patience, idx_tolerance, idx_seed] = ...
+         idx_m, idx_patience, idx_tolerance, idx_maxEpochs, idx_seed] = ...
          ind2sub([n1 n2 na nl nb ncg ncy ncr ...
-                  nt0 ntp ntf ntm nm np nt ns],i);
+                  nt0 ntp ntf ntm nm np nt nmaxEpochs ns],i);
 
         % Extract parameters
         h1 = numHidden1_vals(idx_h1);
@@ -138,6 +140,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         m = m_vals(idx_m);
         pat = patience(idx_patience);
         tol = tolerance(idx_tolerance);
+        maxEpochs = maxEpochs_vals(idx_maxEpochs);
         s = seed(idx_seed);
 
         arch_idx = find(arch_combos(:,1)==h1 & arch_combos(:,2)==h2);
@@ -149,7 +152,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
             lambda,beta,...
             cg,cy,cr,...
             tau0,tau_p,tau_f,tau_min,...
-            m,pat,tol,s,w);
+            m,pat,tol,s,w,maxEpochs);
 
         send(dq,i);
     end
@@ -161,9 +164,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     [idx_h1, idx_h2, idx_fun, idx_lambda, idx_beta,...
      idx_cg, idx_cy, idx_cr,...
      idx_tau0, idx_tau_p, idx_tau_f, idx_tau_min,...
-     idx_m, idx_patience, idx_tolerance, idx_seed] = ...
+    idx_m, idx_patience, idx_tolerance, idx_maxEpochs, idx_seed] = ...
      ind2sub([n1 n2 na nl nb ncg ncy ncr ...
-              nt0 ntp ntf ntm nm np nt ns],bestIdx1);
+            nt0 ntp ntf ntm nm np nt nmaxEpochs ns],bestIdx1);
 
     bestParams1 = {
         numHidden1_vals(idx_h1),...
@@ -181,6 +184,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         m_vals(idx_m),...
         patience(idx_patience),...
         tolerance(idx_tolerance),...
+        maxEpochs_vals(idx_maxEpochs),...
         seed(idx_seed)
     };
 
@@ -188,7 +192,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
 
 end
 
-function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL(retraining, filename)
+function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL(retraining, model_path)
     % Grid Values
     numHidden1_vals = [70]; %ottimali per gradiente
     numHidden2_vals = [50]; %ottimali per gradiente
@@ -202,10 +206,11 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     tau_f_vals      = [0.9]; 
     tau_min_vals    = [1e-5]; 
     m_vals          = [0.1]; 
-    patience        = [300];
-    tolerance       = [1e-4];
-    activation_funs = ["tanh"];
-    seed            = [1932];
+    patience        = [Inf];
+    tolerance       = [0];
+    maxEpochs_vals  = [40000 80000 160000 200000];
+    activation_funs = ["leakyrelu"];
+    seed            = [679, 42, 123, 1024, 2026, 31415, 271828, 161803, 98765, 55555];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -223,9 +228,10 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     nm  = numel(m_vals);
     np  = numel(patience);
     nt  = numel(tolerance);
+    nmaxEpochs = numel(maxEpochs_vals);
     ns  = numel(seed);
 
-    numCombo = n1*n2*na*nl*nb*nd*nR*nrho*nt0*ntp*ntf*ntm*nm*np*nt*ns;
+    numCombo = n1*n2*na*nl*nb*nd*nR*nrho*nt0*ntp*ntf*ntm*nm*np*nt*nmaxEpochs*ns;
     fprintf('\nTotal combinations: %d\n',numCombo);
     results1 = zeros(numCombo,1);
 
@@ -272,12 +278,12 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         h1_init = arch_combos(k,1);
         h2_init = arch_combos(k,2);
         if retraining
-            data = load(filename);
+            data = load(model_path);
             model_sel = data.model;
 
-            w.W1 = model_sel.initial_weights.W1;
-            w.W2 = model_sel.initial_weights.W2;
-            w.W3 = model_sel.initial_weights.W3;
+            w.W1 = model_sel.weights_init.W1;
+            w.W2 = model_sel.weights_init.W2;
+            w.W3 = model_sel.weights_init.W3;
         else     
             for fold = 1:5
                 if activation_funs(1) == "leakyrelu"
@@ -305,9 +311,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
          idx_lambda,idx_beta,idx_delta,...
          idx_R,idx_rho,...
          idx_tau0,idx_tau_p,idx_tau_f,idx_tau_min,...
-         idx_m,idx_patience,idx_tolerance, idx_seed] = ...
+         idx_m,idx_patience,idx_tolerance,idx_maxEpochs,idx_seed] = ...
          ind2sub([n1 n2 na nl nb nd nR nrho ...
-                  nt0 ntp ntf ntm nm np nt ns],i);
+                  nt0 ntp ntf ntm nm np nt nmaxEpochs ns],i);
 
         % Extract parameters
         h1 = numHidden1_vals(idx_h1);
@@ -325,6 +331,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         m = m_vals(idx_m);
         pat = patience(idx_patience);
         tol = tolerance(idx_tolerance);
+        maxEpochs = maxEpochs_vals(idx_maxEpochs);
         s = seed(idx_seed);
 
         arch_idx = find(arch_combos(:,1)==h1 & arch_combos(:,2)==h2);
@@ -336,7 +343,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
             lambda,beta,...
             delta,R,rho,...
             tau0,tau_p,tau_f,tau_min,...
-            m,pat,tol,s,w);
+            m,pat,tol,s,w,maxEpochs);
 
         send(dq,i);
     end
@@ -349,9 +356,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
      idx_lambda,idx_beta,idx_delta,...
      idx_R,idx_rho,...
      idx_tau0,idx_tau_p,idx_tau_f,idx_tau_min,...
-     idx_m,idx_patience,idx_tolerance,idx_seed] = ...
+    idx_m,idx_patience,idx_tolerance,idx_maxEpochs,idx_seed] = ...
      ind2sub([n1 n2 na nl nb nd nR nrho ...
-              nt0 ntp ntf ntm nm np nt ns],bestIdx1);
+            nt0 ntp ntf ntm nm np nt nmaxEpochs ns],bestIdx1);
 
     bestParams1 = {
         numHidden1_vals(idx_h1),...
@@ -369,6 +376,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         m_vals(idx_m),...
         patience(idx_patience),...
         tolerance(idx_tolerance),...
+        maxEpochs_vals(idx_maxEpochs),...
         seed(idx_seed)
         };
 

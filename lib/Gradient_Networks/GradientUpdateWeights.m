@@ -2,7 +2,7 @@ function [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3
     GradientUpdateWeights(W1, W2, W3, b1, b2, b3, ...
                   vel_W1, vel_W2, vel_W3, ...
                   vel_b1, vel_b2, vel_b3, ...
-                  A_b, B_b, eta, lambda, alpha, ...
+                  A_b, B_b, eta, lambda, alpha, batch_size, ...
                   activation_function)
 
     % Batch size
@@ -13,7 +13,7 @@ function [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3
         A_b, W1, b1, W2, b2, W3, b3, activation_function);
 
     %% Output error
-    E_out = Yhat - B_b;
+    E_out =  2 * (Yhat - B_b) / (batch_size * size(B_b, 2));
 
     %% Compute packed gradient
     gradient = GradientComputation( ...
@@ -51,15 +51,6 @@ function [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3
 
     % b3
     db3 = reshape(gradient(idx:end), size(b3));
-
-    %% Average gradients over the batch
-    dW1 = dW1 / P_b;
-    dW2 = dW2 / P_b;
-    dW3 = dW3 / P_b;
-
-    db1 = db1 / P_b;
-    db2 = db2 / P_b;
-    db3 = db3 / P_b;
 
     %% Momentum updates
 

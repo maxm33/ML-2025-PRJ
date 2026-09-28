@@ -1,4 +1,4 @@
-function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w)
+function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w, maxEpochs)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -38,8 +38,6 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     % Early Stopping parameters
     % patience                                  % # of epoch until last loss improvement            
     % tolerance                                 % threshold of improvement     
-    
-    maxEpochs = 10000;
     
     %% ===================================
     % K-FOLD CROSS-VALIDATION
@@ -173,7 +171,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         gamma_prev = 1;
         alpha_prev = 1;
 
-        while epoch < maxEpochs
+        while epoch <= maxEpochs
             
             % Normalized starting gradient
             E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
@@ -306,6 +304,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.tau_f = tau_f;
     model.tau_min = tau_min;
     model.m = m_ss;
+    model.maxEpochs = maxEpochs;
     model.k = k;
     model.early_stopping.patience = patience;
     model.early_stopping.tolerance = tolerance;
@@ -315,9 +314,9 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.output_activation = 'linear';
     model.seed = seed;
 
-    model.initial_weights.W1 = init_W1;
-    model.initial_weights.W2 = init_W2;
-    model.initial_weights.W3 = init_W3;
+    model.weights_init.W1 = init_W1;
+    model.weights_init.W2 = init_W2;
+    model.weights_init.W3 = init_W3;
 
     model.training_time = training_end_time - training_start_time;
 
