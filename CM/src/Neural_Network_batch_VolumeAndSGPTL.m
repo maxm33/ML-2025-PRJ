@@ -1,4 +1,4 @@
-function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w, use_deflection, maxEpochs)
+function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w, use_deflectio)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -42,7 +42,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.weights_init = struct([]);
     model.weights_final = struct([]);
     model.weights_best = struct([]);
-    
+
     %% ===================================
     % K-FOLD CROSS-VALIDATION
     % ====================================
@@ -93,7 +93,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
         % Early Stopping parameters initialization
         best_train_rmse(fold) = inf;
-        final_epoch(fold) = 10000;
+        final_epoch(fold) = 0;
         epochs_since_improvement = 0;
 
         %% ===================================
@@ -175,7 +175,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         gamma_prev = 1;
         alpha_prev = 1;
 
-        while epoch < maxEpochs
+        while epoch <= maxEpochs
             
             % Normalized starting gradient
             E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
@@ -236,6 +236,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     
             % Early Stopping based on RMSE 
             if epoch == 1 || rmse_val(epoch, fold) < best_val_rmse(fold) * (1 - tolerance)
+
                 best_val_rmse(fold) = rmse_val(epoch, fold);
                 epochs_since_improvement = 0;
                 % Salva le matrici correnti
@@ -322,6 +323,8 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.tau_f = tau_f;
     model.tau_min = tau_min;
     model.m = m_ss;
+    model.maxEpochs = maxEpochs;
+
     model.k = k;
     model.early_stopping.patience = patience;
     model.early_stopping.tolerance = tolerance;
@@ -355,9 +358,9 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
     avg_best_val = mean(best_val_rmse); 
 
-    if avg_best_val < 1
+    if avg_best_val < 0.62
         
-        modelsDir = fullfile(rootDir, 'models/SGPTL/stepsize');
+        modelsDir = fullfile(rootDir, 'models/SGPTL');
         if ~exist(modelsDir, 'dir')
             mkdir(modelsDir);
         end

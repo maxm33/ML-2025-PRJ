@@ -1,22 +1,23 @@
-function [bestParams, bestScore] = grid_search_mb(retraining, filename, fold_bool)
+function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_val)
     if nargin < 1, retraining = false; end
-    if nargin < 2, filename = ''; end
-    if nargin < 3, fold_bool = false; end
+    if nargin < 2, model_path = ''; end
+    if nargin < 3, cross_val = false; end
 
     % Grid Values
     numHidden1_vals = [70];
     numHidden2_vals = [50];
     activation_vals = ["leakyrelu"];
-    eta_vals        = [1e-2];
-    cg_vals         = [50];   
+    eta_vals        = [5e-5];
+    cg_vals         = [100];   
     cy_vals         = [200];   
-    cr_vals         = [10];   
-    lambda_vals     = [1 1e-1 5e-3];
+    cr_vals         = [3];   
+    lambda_vals     = [1e-2 1e-3 5e-3 1e-4 1e-5 1e-6 1e-7];
     alpha_vals      = [0.9];
     batch_vals      = [500];
-    patience_vals   = [200];
-    tolerance_vals  = [1e-4];
-    seed_vals       = [1932];
+    patience_vals   = [Inf];
+    tolerance_vals  = [0];
+    maxEpochs_vals  = [40000 80000 160000 200000];
+    seed_vals       = [679, 42, 123, 1024, 1932, 2026, 31415, 271828, 161803, 98765, 55555];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -31,9 +32,10 @@ function [bestParams, bestScore] = grid_search_mb(retraining, filename, fold_boo
     nb  = numel(batch_vals);
     np  = numel(patience_vals);
     nt  = numel(tolerance_vals);
+    nmaxEpochs = numel(maxEpochs_vals);
     ns  = numel(seed_vals);
 
-    numCombo = n1*n2*naf*ne*ncg*ncy*ncr*nl*na*nb*np*nt*ns;
+    numCombo = n1*n2*naf*ne*ncg*ncy*ncr*nl*na*nb*np*nt*nmaxEpochs*ns;
     fprintf('\nTotal combinations: %d\n', numCombo);
     results = zeros(numCombo, 1);
 
@@ -48,7 +50,7 @@ function [bestParams, bestScore] = grid_search_mb(retraining, filename, fold_boo
     tStart = tic;
     lastPrint = 0;
     afterEach(dq, @updateProgress);
-
+    
     function updateProgress(~)
         completed = completed + 1;
         elapsed = toc(tStart);
@@ -69,81 +71,19 @@ function [bestParams, bestScore] = grid_search_mb(retraining, filename, fold_boo
     fprintf('\nStarting grid search...\n');
 
     N = 12; M = 4;
-    [H1, H2] = ndgrid(numHidden1_vals, numHidden2_vals);
-    arch_combos = [H1(:), H2(:)];
-    init_weights = cell(size(arch_combos, 1), 1);
-
-    % Inizializzazione pesi
-    if fold_bool
-        for k = 1:size(arch_combos, 1)
-            h1_init = arch_combos(k, 1);
-            h2_init = arch_combos(k, 2);
-            if retraining
-                data = load(filename);
-                model_sel = data.model;
-                for fold = 1:5
-                    w.W1{fold} = model_sel.weights_init(fold).W1;
-                    w.W2{fold} = model_sel.weights_init(fold).W2;
-                    w.W3{fold} = model_sel.weights_init(fold).W3;
-                end
-                w.b1 = model_sel.weights_init(1).b1;
-                w.b2 = model_sel.weights_init(1).b2;
-                w.b3 = model_sel.weights_init(1).b3;
-            else
-                for fold = 1:5
-                    if activation_vals(1) == "leakyrelu"
-                        w.W1{fold} = initHe(h1_init, N);
-                        w.W2{fold} = initHe(h2_init, h1_init);
-                        w.W3{fold} = initHe(M, h2_init);
-                    elseif activation_vals(1) == "tanh"
-                        w.W1{fold} = initXavier(h1_init, N);
-                        w.W2{fold} = initXavier(h2_init, h1_init);
-                        w.W3{fold} = initXavier(M, h2_init);
-                    end
-                end
-                w.b1 = zeros(h1_init, 1);
-                w.b2 = zeros(h2_init, 1);
-                w.b3 = zeros(M, 1);
-            end
-            init_weights{k} = w;
-        end
-    else
-        for k = 1:size(arch_combos, 1)
-            h1_init = arch_combos(k, 1);
-            h2_init = arch_combos(k, 2);
-            if retraining
-                data = load(filename);
-                model_sel = data.model;
-                w.W1 = model_sel.weights_init(1).W1;
-                w.W2 = model_sel.weights_init(1).W2;
-                w.W3 = model_sel.weights_init(1).W3;
-                w.b1 = model_sel.weights_init(1).b1;
-                w.b2 = model_sel.weights_init(1).b2;
-                w.b3 = model_sel.weights_init(1).b3;
-            else
-                if activation_vals(1) == "leakyrelu"
-                    w.W1 = initHe(h1_init, N);
-                    w.W2 = initHe(h2_init, h1_init);
-                    w.W3 = initHe(M, h1_init);
-                elseif activation_vals(1) == "tanh"
-                    w.W1 = initXavier(h1_init, N);
-                    w.W2 = initXavier(h2_init, h1_init);
-                    w.W3 = initXavier(M, h2_init);
-                end
-                w.b1 = zeros(h1_init, 1);
-                w.b2 = zeros(h2_init, 1);
-                w.b3 = zeros(M, 1);
-            end
-            init_weights{k} = w;
-        end
+    
+    model_sel = struct();
+    if retraining
+        data = load(model_path);
+        model_sel = data.model;
     end
 
     % Parallel grid search
     parfor i = 1:numCombo
         % Convert linear index into parameter indices
         [idx_h1, idx_h2, idx_af, idx_eta, idx_cg, idx_cy, idx_cr, idx_lambda, ...
-         idx_alpha, idx_batch, idx_pat, idx_tol, idx_seed] = ...
-            ind2sub([n1 n2 naf ne ncg ncy ncr nl na nb np nt ns], i);
+            idx_alpha, idx_batch, idx_pat, idx_tol, idx_maxEpochs, idx_seed] = ...
+                ind2sub([n1 n2 naf ne ncg ncy ncr nl na nb np nt nmaxEpochs ns], i);
 
         % Extract parameters
         h1         = numHidden1_vals(idx_h1);
@@ -158,26 +98,78 @@ function [bestParams, bestScore] = grid_search_mb(retraining, filename, fold_boo
         batch      = batch_vals(idx_batch);
         pat        = patience_vals(idx_pat);
         tol        = tolerance_vals(idx_tol);
+        maxEpochs  = maxEpochs_vals(idx_maxEpochs);
         s          = seed_vals(idx_seed);
 
-        arch_idx = find(arch_combos(:,1) == h1 & arch_combos(:,2) == h2);
-        w = init_weights{arch_idx};
+        rng(s, 'twister');
+        w = struct();
+        
+        if cross_val
+            if retraining
+                for fold = 1:5
+                    w.W1{fold} = model_sel.weights_init(fold).W1;
+                    w.W2{fold} = model_sel.weights_init(fold).W2;
+                    w.W3{fold} = model_sel.weights_init(fold).W3;
+                end
+                w.b1 = model_sel.weights_init(1).b1;
+                w.b2 = model_sel.weights_init(1).b2;
+                w.b3 = model_sel.weights_init(1).b3;
+            else
+                for fold = 1:5
+                    if activation == "leakyrelu"
+                        w.W1{fold} = initHe(h1, N);
+                        w.W2{fold} = initHe(h2, h1);
+                        w.W3{fold} = initHe(M, h2);
+                    elseif activation == "tanh"
+                        w.W1{fold} = initXavier(h1, N);
+                        w.W2{fold} = initXavier(h2, h1);
+                        w.W3{fold} = initXavier(M, h2);
+                    end
+                end
+                w.b1 = zeros(h1, 1);
+                w.b2 = zeros(h2, 1);
+                w.b3 = zeros(M, 1);
+            end
+        else
+            if retraining
+                w.W1 = model_sel.weights_init(1).W1;
+                w.W2 = model_sel.weights_init(1).W2;
+                w.W3 = model_sel.weights_init(1).W3;
+                w.b1 = model_sel.weights_init(1).b1;
+                w.b2 = model_sel.weights_init(1).b2;
+                w.b3 = model_sel.weights_init(1).b3;
+            else
+                if activation == "leakyrelu"
+                    w.W1 = initHe(h1, N);
+                    w.W2 = initHe(h2, h1);
+                    w.W3 = initHe(M, h2);
+                elseif activation == "tanh"
+                    w.W1 = initXavier(h1, N);
+                    w.W2 = initXavier(h2, h1);
+                    w.W3 = initXavier(M, h2);
+                end
+                w.b1 = zeros(h1, 1);
+                w.b2 = zeros(h2, 1);
+                w.b3 = zeros(M, 1);
+            end
+        end
 
         % Train network
         results(i) = Neural_Network_minibatch_training(...
-            h1, h2, activation, lambda, eta, green, yellow, red, alpha, batch, s, pat, tol, w);
+            h1, h2, activation, lambda, eta, green, yellow, red, alpha, batch, s, pat, tol, w, maxEpochs);
 
         % Notify progress
         send(dq, i);
     end
 
-    % Find best result
+    % Find best result (f*)
     [bestScore, bestIdx] = min(results);
 
+    % Recover best parameters
     [idx_h1, idx_h2, idx_af, idx_eta, idx_cg, idx_cy, idx_cr, idx_lambda, ...
-     idx_alpha, idx_batch, idx_pat, idx_tol, idx_seed] = ...
-        ind2sub([n1 n2 naf ne ncg ncy ncr nl na nb np nt ns], bestIdx);
-    
+      idx_alpha, idx_batch, idx_pat, idx_tol, idx_maxEpochs, idx_seed] = ...
+          ind2sub([n1 n2 naf ne ncg ncy ncr nl na nb np nt nmaxEpochs ns], bestIdx);
+
     bestParams = {
         numHidden1_vals(idx_h1), ...
         numHidden2_vals(idx_h2), ...
@@ -191,10 +183,11 @@ function [bestParams, bestScore] = grid_search_mb(retraining, filename, fold_boo
         batch_vals(idx_batch), ...
         patience_vals(idx_pat), ...
         tolerance_vals(idx_tol), ...
+        maxEpochs_vals(idx_maxEpochs), ...
         seed_vals(idx_seed)
     };
 
-    fprintf('\nMiglior RMSE (validation): %.6f\n', bestScore);
+    fprintf('\nMiglior f* (RMSE training): %.6f\n', bestScore);
 end
 
 % Inizializzazione Xavier (per tanh)
@@ -209,4 +202,4 @@ function W = initHe(n_out, n_in)
     W = randn(n_out, n_in) * sigma;
 end
 
-grid_search_mb(1, 'best_lambda0_001', 0)
+grid_search_mb();

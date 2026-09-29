@@ -93,7 +93,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
 
         % Early Stopping parameters initialization
         best_train_rmse(fold) = inf;
-        final_epoch(fold) = maxEpochs;
+        final_epoch(fold) = 0;
         epochs_since_improvement = 0;
 
         %% ===================================
@@ -193,7 +193,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
         gamma_prev = 1;
         alpha_prev = 1;
 
-        while epoch < maxEpochs
+        while epoch <= maxEpochs
             
             % Normalized starting gradient
             E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
@@ -206,7 +206,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
             [beta, ng, ny, nr, f_lev, f_rec] = ColorTVRule(loss, loss_prev, d_prev, g, rho, cg, ng, cy, ny, cr, nr, f_lev, f_rec, beta);
 
             %% Stepsize-restricted Rule
-            
+           
             [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch, use_deflection);
                 
             %fprintf('Epoch %d | gamma=%.9f | f_lev=%.6f | alpha=%.9f | loss=%.9f\n', epoch, gamma, f_lev, alpha, loss);
@@ -243,9 +243,10 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
             % RMSE validation
             err_val = B_val_norm - Yval;
             rmse_val(epoch, fold) = sqrt(mean(err_val(:).^2));
-    
+   
             % Early Stopping based on RMSE 
             if epoch == 1 || rmse_val(epoch, fold) < best_val_rmse(fold) * (1 - tolerance)
+
                 best_val_rmse(fold) = rmse_val(epoch, fold);
                 epochs_since_improvement = 0;
                 % Salva le matrici correnti
@@ -257,7 +258,7 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
             end
 
             if epochs_since_improvement >= patience
-                final_epoch(fold)= epoch;
+                final_epoch(fold)= epoch;           
                 %fprintf("EARLY STOP at epoch %d  | RMSE (norm) = %.6f \n", epoch, best_val_rmse(fold));
                 break;
             end
@@ -330,6 +331,8 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
     model.tau_f = tau_f;
     model.tau_min = tau_min;
     model.m = m_ss;
+
+    model.maxEpochs = maxEpochs;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
     model.k = k;
@@ -364,9 +367,9 @@ function score = Neural_Network_batch_VolumeAndColorTV(numHidden1, numHidden2, a
 
     avg_best_val = mean(best_val_rmse); 
 
-    if avg_best_val < 1
+    if avg_best_val < 0.62
 
-        modelsDir = fullfile(rootDir, 'models/ColorTV_Volume/stepsize');
+        modelsDir = fullfile(rootDir, 'models/ColorTV_Volume');
         if ~exist(modelsDir, 'dir')
             mkdir(modelsDir);
         end
@@ -423,6 +426,7 @@ function [beta, ng, ny, nr, f_lev, f_rec] = ColorTVRule(loss, loss_prev, d_prev,
        f_rec = loss;
     end
 end
+
 
 function [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch, use_deflection)
     % Deflection()

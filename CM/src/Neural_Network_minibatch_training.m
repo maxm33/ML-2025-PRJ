@@ -1,4 +1,4 @@
-function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activation_function, lambda, initial_eta, cg, cy, cr, alpha, batch_size, seed, patience, tolerance, init_w)
+function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activation_function, lambda, initial_eta, cg, cy, cr, alpha, batch_size, seed, patience, tolerance, init_w, maxEpochs)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -37,8 +37,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     % patience                                  % # of epoch until last loss improvement            
     % tolerance                                 % threshold of improvement
     
-    maxEpochs = 20000;
-
     model.weights_init = struct();
     model.weights_final = struct();
     model.weights_best = struct();
@@ -70,10 +68,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     b1 = init_w.b1;
     b2 = init_w.b2;
     b3 = init_w.b3;
-
-    init_W1 = W1; 
-    init_W2 = W2; 
-    init_W3 = W3;
 
     % SAVE INITIAL WEIGHTS
     model.weights_init.W1 = W1;
@@ -133,7 +127,7 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     %% ===================================
     % BACKPROPAGATION TRAINING LOOP
     % ====================================
-    while epoch < maxEpochs
+    while epoch <= maxEpochs
 
         E_out_full = 2 * (Yf - B_train_norm) / (P_tr * size(B_train_norm, 2));
         g_full = GradientComputation(E_out_full, A_train, A1f, Z1f, A2f, Z2f, ...
@@ -145,8 +139,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     
         denom = norm(g_full)^2 + 1e-9;
         eta_epoch = max(eta * (loss_curr - f_lev) / denom, 0);
-
-        %fprintf('\nEta: %.6f\n', eta_epoch);
             
         % Shuffling training patterns
         perm = randperm(P_tr);
@@ -212,7 +204,7 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
         model.weights_best.b3 = best_b3;
 
     if final_epoch == 0
-        final_epoch = epoch - 1;  % il ciclo è arrivato a maxEpochs
+        final_epoch = maxEpochs;  % il ciclo è arrivato a maxEpochs
     end
 
     % End of training time
@@ -225,15 +217,12 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     model.alpha = alpha;
     model.lambda = lambda;
     model.batch_size = batch_size;
+    model.maxEpochs = maxEpochs;
     model.numHidden1 = numHidden1;
     model.numHidden2 = numHidden2;
     model.activation = activation_function;
     model.seed = seed;
     model.best_loss = best_train_loss;
-
-    model.initial_weights.W1 = init_W1;
-    model.initial_weights.W2 = init_W2;
-    model.initial_weights.W3 = init_W3;
 
     model.training_time = training_end_time - training_start_time;
     model.time_per_epoch = model.training_time / final_epoch;
@@ -242,28 +231,25 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
 
     %% Saving and plot the model results
 
-    if true
-
-        modelsDir = fullfile(rootDir, 'models/Gradient');
-        if ~exist(modelsDir, 'dir')
-            mkdir(modelsDir);
-        end
-
-        % ID univoco derivato dal thread/worker o UUID (non altera rng)
-        uuid_str = char(java.util.UUID.randomUUID);
-        unique_id = uuid_str(1:8);
-
-        filename = fullfile(modelsDir, sprintf( ...
-                'Gradient-h1-%d-h2-%d-lambda-%g_%s.mat', ...
-                numHidden1, numHidden2, lambda, unique_id));
-
-        save(filename, 'model');
-
-        [~, name] = fileparts(filename);
-        
-        plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot_train_loss(loss_history, plot_file);
+    modelsDir = fullfile(rootDir, 'models/Gradient');
+    if ~exist(modelsDir, 'dir')
+        mkdir(modelsDir);
     end
+
+    % ID univoco derivato dal thread/worker o UUID (non altera rng)
+    uuid_str = char(java.util.UUID.randomUUID);
+    unique_id = uuid_str(1:8);
+
+    filename = fullfile(modelsDir, sprintf( ...
+            'Gradient-h1-%d-h2-%d-eta-%g-alpha-%g_%s.mat', ...
+            numHidden1, numHidden2, eta, alpha, unique_id));
+
+    save(filename, 'model');
+
+    [~, name] = fileparts(filename);
+    
+    plot_file = fullfile(modelsDir, [name '_plot.png']);
+    PlotTrainingLoss(loss_history, plot_file);
 
     score = best_train_loss;
 end
@@ -303,7 +289,6 @@ function [beta, ng, ny, nr, f_lev, f_rec] = ColorTVRule(loss, loss_prev, d_prev,
 end
 
 function osc = compute_oscillation(loss, final_ep)
-
     series = loss(1:final_ep);
     diffs = diff(series);
     % frazione di epoche in cui la loss aumenta (non-monotonicità)
