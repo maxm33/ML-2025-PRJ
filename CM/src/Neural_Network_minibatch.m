@@ -209,26 +209,26 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
     avg_best_val = mean(best_rmse_val, 'omitnan');
 
     %% SAVE MODEL AND LEARNING CURVES
-        modelsDir = fullfile(rootDir, 'models/Gradient');
-        if ~exist(modelsDir, 'dir')
-            mkdir(modelsDir);
-        end
+    modelsDir = fullfile(rootDir, 'models/Gradient');
+    if ~exist(modelsDir, 'dir')
+        mkdir(modelsDir);
+    end
 
-        % ID univoco derivato dal thread/worker o UUID (non altera rng)
-        uuid_str = char(java.util.UUID.randomUUID);
-        unique_id = uuid_str(1:8);
-    
-        filename = fullfile(modelsDir, sprintf( ...
-            'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%s.mat', ...
-            numHidden1, numHidden2, eta, lambda, alpha, batch_size, unique_id));
-    
-        save(filename, 'model');
-    
-        [~, name] = fileparts(filename);
-    
-        %% PLOT AND SAVE LEARNING CURVES
-        plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
+    % ID univoco derivato dal thread/worker o UUID (non altera rng)
+    uuid_str = char(java.util.UUID.randomUUID);
+    unique_id = uuid_str(1:8);
+
+    filename = fullfile(modelsDir, sprintf( ...
+        'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%s.mat', ...
+        numHidden1, numHidden2, eta, lambda, alpha, batch_size, unique_id));
+
+    save(filename, 'model');
+
+    [~, name] = fileparts(filename);
+
+    %% PLOT AND SAVE LEARNING CURVES
+    plot_file = fullfile(modelsDir, [name '_plot.png']);
+    Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
     
     % mean of RMSE VALIDATION as model evaluation parameter
     score = avg_best_val;
