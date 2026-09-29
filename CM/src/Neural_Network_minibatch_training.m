@@ -73,7 +73,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     model.weights_init.W1 = W1;
     model.weights_init.W2 = W2;
     model.weights_init.W3 = W3;
-
     model.weights_init.b1 = b1;
     model.weights_init.b2 = b2;
     model.weights_init.b3 = b3;
@@ -81,7 +80,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     vel_W1 = zeros(size(W1));
     vel_W2 = zeros(size(W2));
     vel_W3 = zeros(size(W3));
-    
     vel_b1 = zeros(size(b1));
     vel_b2 = zeros(size(b2));
     vel_b3 = zeros(size(b3));
@@ -189,7 +187,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
         model.weights_final.W1 = W1;
         model.weights_final.W2 = W2;
         model.weights_final.W3 = W3;
-
         model.weights_final.b1 = b1;
         model.weights_final.b2 = b2;
         model.weights_final.b3 = b3;
@@ -198,7 +195,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
         model.weights_best.W1 = best_W1;
         model.weights_best.W2 = best_W2;
         model.weights_best.W3 = best_W3;
-        
         model.weights_best.b1 = best_b1;
         model.weights_best.b2 = best_b2;
         model.weights_best.b3 = best_b3;

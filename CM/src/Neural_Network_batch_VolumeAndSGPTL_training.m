@@ -289,7 +289,7 @@ function score = Neural_Network_batch_SGPTL_training(numHidden1, numHidden2, act
         [~, name] = fileparts(filename);
         
         plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot_train_loss(loss_history, plot_file);
+        PlotTrainingLoss(loss_history, plot_file);
     end
 
     score = best_train_loss;
