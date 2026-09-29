@@ -1,0 +1,293 @@
+function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_function, eta, lambda, alpha, batch_size, seed)
+
+    %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
+    rootDir = fileparts(mfilename('fullpath'));
+    libDir = fullfile(rootDir, '..', '..', 'lib');
+    if ~contains(path, libDir)
+        addpath(genpath(libDir));
+    end
+
+    rng(seed, 'twister');
+
+    %% LOADING TRAINING DATA
+    Dataset = readtable(fullfile(rootDir, '..', '..', 'data', 'TR', 'ML-CUP25-TR.csv'));
+    inputs_raw = Dataset{:,2:13};
+    outputs_raw = Dataset{:,14:end};
+    [Ns, N] = size(inputs_raw);
+    M = size(outputs_raw,2);
+    
+    %% DEFINING INTERNAL TEST SET (20% hold-out)
+    [A_test, B_test, A_rest, B_rest] = SplitDatasets(inputs_raw, outputs_raw, Ns, 0.2);
+
+    %% EARLY-STOPPING SETTINGS
+    patience = 300; tolerance = 1e-4; maxEpochs = 10000;
+    
+    %% PERFOMANCE PARAMETERS
+
+    % Folds
+    k = 5;
+    
+    % Normalized RMSE (Root Mean Square Error)
+    rmse_train = nan(maxEpochs,k); rmse_val = nan(maxEpochs,k); rmse_test = nan(maxEpochs,k);
+    best_rmse_train = inf(1,k); best_rmse_val = nan(1,k); best_rmse_test = nan(1,k);
+
+    best_epoch = nan(1,k);
+    
+    model.weights_init = struct([]);
+    model.weights_final = struct([]);
+    model.weights_best = struct([]);
+
+    %% K-FOLD CROSS-VALIDATION LOOP
+    cv = cvpartition(size(A_rest,1),'KFold',k);
+
+    training_start_time = posixtime(datetime('now'));
+
+    for fold = 1:k
+        idx_tr = training(cv,fold);
+        idx_vl = test(cv,fold);
+        
+        % DATASETS
+        A_tr = A_rest(idx_tr,:);
+        B_tr = B_rest(idx_tr,:);
+        A_vl = A_rest(idx_vl,:);
+        B_vl = B_rest(idx_vl,:);
+        
+        % NORMALIZATION
+        [A_tr_norm, A_vl_norm, B_tr_norm, B_vl_norm, muA, stdA, muB, stdB] = NormalizeDatasets(A_tr, B_tr, A_vl, B_vl);
+
+        % Save normalization parameters for replicability
+        model.norm(fold).muA = muA;
+        model.norm(fold).stdA = stdA;
+        model.norm(fold).muB = muB;
+        model.norm(fold).stdB = stdB;
+        
+        P_tr = size(A_tr,1);
+        
+        % HE-KAIMING WEIGHTS INITIALIZATION
+        [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientInitializeWeights(numHidden1, numHidden2, N, M);
+        
+        % SAVE INITIAL WEIGHTS
+        model.weights_init(fold).W1 = W1;
+        model.weights_init(fold).W2 = W2;
+        model.weights_init(fold).W3 = W3;
+
+        model.weights_init(fold).b1 = b1;
+        model.weights_init(fold).b2 = b2;
+        model.weights_init(fold).b3 = b3;
+
+        best_W1 = W1; best_W2 = W2; best_W3 = W3;
+        best_b1 = b1; best_b2 = b2; best_b3 = b3;
+
+        no_improve = 0;
+        
+        % TRAINING LOOP
+        for epoch = 1:maxEpochs
+            % Shuffling training patterns
+            perm = randperm(P_tr);
+            A = A_tr_norm(perm,:); 
+            B = B_tr_norm(perm,:);
+            
+            % MINI-BATCH LOOP
+            for mb = 1:batch_size:P_tr
+                idx = mb:min(mb+batch_size-1,P_tr);
+                A_b = A(idx,:);
+                B_b = B(idx,:);
+
+            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientUpdateWeights(W1, W2, W3, b1, b2, b3, ...
+                    vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3, ...
+                    A_b, B_b, eta, lambda, alpha, activation_function);
+            end
+
+            %% TRAINING ERRORS
+            Ytr = Forward(A_tr_norm, W1, b1, W2, b2, W3, b3, activation_function);
+            rmse_train(epoch,fold) = sqrt(mean((Ytr - B_tr_norm).^2,'all'));
+            
+            %% VALIDATION ERRORS
+            Yv = Forward(A_vl_norm, W1, b1, W2, b2, W3, b3, activation_function);
+            rmse_val(epoch,fold) = sqrt(mean((Yv - B_vl_norm).^2,'all'));
+            
+            %% INTERNAL TEST ERRORS
+            A_test_norm = (A_test - muA) ./ stdA;
+            B_test_norm = (B_test - muB) ./ stdB;
+
+            Yt = Forward(A_test_norm, W1, b1, W2, b2, W3, b3, activation_function);
+            rmse_test(epoch,fold) = sqrt(mean((Yt - B_test_norm).^2,'all'));
+            
+            if epoch == 1
+                best_rmse_val(fold) = rmse_val(epoch,fold);
+                best_rmse_test(fold) = rmse_test(epoch,fold);
+            end
+
+            %% EARLY-STOPPING (has to improve of tolerance% wrt the best RMSE VL in the last patience epochs)
+            if rmse_val(epoch,fold) < best_rmse_val(fold) * (1-tolerance)
+                best_rmse_val(fold) = rmse_val(epoch,fold);
+                best_rmse_train(fold) = rmse_train(epoch,fold);
+                best_rmse_test(fold) = rmse_test(epoch,fold);
+                best_epoch(fold) = epoch;
+                no_improve = 0;
+            
+                % SAVE CURRENT BEST WEIGHTS
+                best_W1 = W1;
+                best_W2 = W2;
+                best_W3 = W3;
+            
+                best_b1 = b1;
+                best_b2 = b2;
+                best_b3 = b3;
+            else
+                no_improve = no_improve + 1;
+            end
+            
+            if no_improve >= patience || isnan(rmse_val(epoch,fold))
+                break
+            end
+        end
+
+        %% SAVE FINAL WEIGHTS
+        model.weights_final(fold).W1 = W1;
+        model.weights_final(fold).W2 = W2;
+        model.weights_final(fold).W3 = W3;
+
+        model.weights_final(fold).b1 = b1;
+        model.weights_final(fold).b2 = b2;
+        model.weights_final(fold).b3 = b3;
+        
+        %% SAVE BEST WEIGHTS
+        model.weights_best(fold).W1 = best_W1;
+        model.weights_best(fold).W2 = best_W2;
+        model.weights_best(fold).W3 = best_W3;
+        
+        model.weights_best(fold).b1 = best_b1;
+        model.weights_best(fold).b2 = best_b2;
+        model.weights_best(fold).b3 = best_b3;
+    end
+    
+    %% SAVE REST OF MODEL'S DATA
+    model.training_time = posixtime(datetime('now')) - training_start_time;
+    
+    model.eta = eta;
+    model.alpha = alpha;
+    model.lambda = lambda;
+    model.batch_size = batch_size;
+    model.numHidden1 = numHidden1;
+    model.numHidden2 = numHidden2;
+    model.activation = activation_function;
+
+    model.rmse_train = mean(best_rmse_train, 'omitnan');
+    model.rmse_val = mean(best_rmse_val, 'omitnan');
+    model.rmse_test = mean(best_rmse_test, 'omitnan');
+
+    model.rmse_train_curve = rmse_train;
+    model.rmse_val_curve = rmse_val;
+    model.rmse_test_curve = rmse_test;
+
+    avg_best_val = mean(best_rmse_val, 'omitnan');
+
+    %% CHECK WHETHER MODEL SHOULD BE SAVED
+    VAR_THRESHOLD       = 0.005;   % threshold for validation curve smoothness/stability (total variation)
+    OVERFIT_THRESHOLD   = 0.175;   % threshold for train-validation gap considered overfitting
+    RMSE_THRESHOLD      = 0.65;    % maximum accepted normalized validation RMSE
+    UNDERFIT_GAP        = 0.10;    % train-validation gap below which errors are considered similar
+    
+    totalVariations = zeros(1,k);
+    overfitGaps = zeros(1,k);
+    
+    rejection_reasons = {};
+    save_model = true;
+    
+    for fold = 1:k
+    
+        % Validation curve stability
+        curve = rmse_val(:,fold);
+        curve = curve(~isnan(curve));
+    
+        if numel(curve) > 1
+            totalVariations(fold) = sum(abs(diff(curve))) / numel(curve);
+        end
+    
+        % Overfitting gap
+        overfitGaps(fold) = ...
+            (best_rmse_val(fold) - best_rmse_train(fold)) / ...
+            max(best_rmse_train(fold), eps);
+    
+    end
+    
+    avgTotalVariation = mean(totalVariations);
+    avgOverfitGap = mean(overfitGaps);
+    
+    avgTrainRMSE = mean(best_rmse_train,'omitnan');
+    avgValRMSE   = mean(best_rmse_val,'omitnan');
+    
+    % Relative train-validation difference
+    relativeGap = abs(avgValRMSE - avgTrainRMSE) / max(avgTrainRMSE, eps);
+
+    if avgTotalVariation > 1 
+        avgTotalVariation=inf;
+    end
+    
+    %% REJECTION CONDITIONS
+    
+    % 1) Unstable validation learning curve
+    % High variation in performance throughout training, likely a noisy curve
+    if avgTotalVariation > VAR_THRESHOLD
+        rejection_reasons{end+1} = sprintf('unstable (var %.4f > %.4f)', ...
+            avgTotalVariation, VAR_THRESHOLD);
+    end
+    
+    % 2) Overfitting
+    % High percentage gap between training and validation errors
+    if avgOverfitGap > OVERFIT_THRESHOLD
+        rejection_reasons{end+1} = sprintf('overfitting (gap %.1f%% > %.1f%%)', ...
+            100*avgOverfitGap, 100*OVERFIT_THRESHOLD);
+    end
+    
+    % 3) Underfitting
+    % High training and validation errors, but almost no difference between them
+    if avg_best_val > RMSE_THRESHOLD && relativeGap < UNDERFIT_GAP
+        rejection_reasons{end+1} = sprintf('underfitting (RMSE TR %.3f, RMSE VL %.3f)', ...
+            avgTrainRMSE, avgValRMSE);
+    end
+    
+    % 4) RMSE Validation not good enough
+    % Poor validation performance not explained by underfitting
+    if avg_best_val > RMSE_THRESHOLD && relativeGap >= UNDERFIT_GAP
+        rejection_reasons{end+1} = sprintf('high RMSE VL (%.3f > %.3f)', ...
+            avg_best_val, RMSE_THRESHOLD);
+    end
+    
+    %% FINAL DECISION
+    if ~isempty(rejection_reasons)
+    
+        save_model = false;
+    
+        fprintf('\nh1=%d-h2=%d-eta=%g-lambda=%g-alpha=%g-batch=%g rejected: %s', ...
+            numHidden1, numHidden2, eta, lambda, alpha, batch_size, ...
+            strjoin(rejection_reasons, ', '));
+    end
+    
+    if save_model
+        modelsDir = fullfile(rootDir, 'models/Gradient');
+        if ~exist(modelsDir, 'dir')
+            mkdir(modelsDir);
+        end
+
+        % ID univoco derivato dal thread/worker o UUID (non altera rng)
+        uuid_str = char(java.util.UUID.randomUUID);
+        unique_id = uuid_str(1:8);
+    
+        filename = fullfile(modelsDir, sprintf( ...
+            'h1-%d-h2-%d-eta-%g-lambda-%g-alpha-%g-batch-%g_%s.mat', ...
+            numHidden1, numHidden2, eta, lambda, alpha, batch_size, unique_id));
+    
+        save(filename, 'model');
+    
+        [~, name] = fileparts(filename);
+    
+        %% PLOT AND SAVE LEARNING CURVES
+        plot_file = fullfile(modelsDir, [name '_plot.png']);
+        Plot(rmse_train, rmse_val, rmse_test, avg_best_val, plot_file);
+    end
+    
+    % mean of RMSE VALIDATION as model evaluation parameter
+    score = avg_best_val;
+end
