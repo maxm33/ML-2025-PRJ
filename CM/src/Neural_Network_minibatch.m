@@ -102,9 +102,6 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
         model.weights_init(fold).b2 = b2;
         model.weights_init(fold).b3 = b3;
 
-        best_W1 = W1; best_W2 = W2; best_W3 = W3;
-        best_b1 = b1; best_b2 = b2; best_b3 = b3;
-
         no_improve = 0;
         
         % TRAINING LOOP
