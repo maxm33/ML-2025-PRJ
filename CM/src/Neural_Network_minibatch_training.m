@@ -49,9 +49,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     % Loss curve
     loss_history = nan(maxEpochs, 1);
 
-    % TRAINING START MEASURAMENT
-    training_start_time = posixtime(datetime('now'));
-
     % Early Stopping parameters initialization
     best_train_loss = inf;
     final_epoch = 0;
@@ -60,6 +57,9 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     %% ===================================
     % NEURAL NETWORK CONFIGURATION (fully connected)
     % ====================================
+
+    % TRAINING START MEASURAMENT
+    training_start_time = posixtime(datetime('now'));
 
     % Weights initialization
     W1 = init_w.W1;
