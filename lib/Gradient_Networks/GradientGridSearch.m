@@ -187,7 +187,7 @@ function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_
         seed_vals(idx_seed)
     };
 
-    fprintf('\nMiglior f* (RMSE training): %.6f\n', bestScore);
+    fprintf('\nMiglior f* (MSE training): %.6f\n', bestScore);
 end
 
 % Inizializzazione Xavier (per tanh)
