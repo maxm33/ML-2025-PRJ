@@ -1,21 +1,22 @@
-function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV(retraining, filename)
+function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndColorTV(retraining, filename, use_deflection, fold_bool)
 
     % Grid Values
-    numHidden1_vals = [70];    %ottimale per ColorTV 
-    numHidden2_vals = [50];    %ottimale per ColorTV
-    lambda_vals     = [1e-3 1e-4 1e-5];   
-    beta_vals       = [1e-3 5e-4 1e-4 5e-5];    % minore di 0.0005 troppo lento, maggiore di 0.002 troppo veloce
-    cg_vals         = [175 200 225 250];    % 50 valore ottimo per ora
-    cy_vals         = [200 400];    % sembra poco importante, fisso a 400 
-    cr_vals         = [3 5 10 20];     % 10 sembra il migliore 
-    tau0_vals       = [0.1 0.5 1];      % cambia poco,lo fisso a 1
-    tau_p_vals      = [200];    % ben distribuite
-    tau_f_vals      = [0.9];    % è uguale
-    tau_min_vals    = [1e-5];   % questo è un floor raramente raggiunto
-    m_vals          = [0.1 0.05 0.01 0.005];    % da 0.01 in giu
-    patience        = [300];
-    tolerance       = [1e-4];
-    activation_funs = ["tanh"];
+    numHidden1_vals = [70];    
+    numHidden2_vals = [50];   
+    lambda_vals     = [1e-4]; 
+    beta_vals       = [1e-1];  
+    cg_vals         = [100];   
+    cy_vals         = [200];   
+    cr_vals         = [3];   
+    tau0_vals       = [0.1];  
+    tau_p_vals      = [200];   
+    tau_f_vals      = [0.90];   
+    tau_min_vals    = [1e-5];   
+    m_vals          = [0.1];   
+    patience        = [Inf];
+    tolerance       = [0];
+    maxEpochs_vals  = [20000];
+    activation_funs = ["leakyrelu"];
     seed            = [1932];
 
     % Number of combinations
@@ -34,9 +35,10 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     nm  = numel(m_vals);
     np  = numel(patience);
     nt  = numel(tolerance);
+    nmaxEpochs = numel(maxEpochs_vals);
     ns  = numel(seed);
 
-    numCombo = n1*n2*na*nl*nb*ncg*ncy*ncr*nt0*ntp*ntf*ntm*nm*np*nt*ns;
+    numCombo = n1*n2*na*nl*nb*ncg*ncy*ncr*nt0*ntp*ntf*ntm*nm*np*nt*ns*nmaxEpochs;
     fprintf('\nTotal combinations: %d\n',numCombo);
     results1 = zeros(numCombo,1);
 
@@ -56,15 +58,12 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         completed = completed + 1;
         elapsed = toc(tStart);
     
-        % Stampa la prima iterazione (così vedi subito che è partito), 
-        % poi ogni 5 minuti (300 sec), oppure alla fine.
         if completed == 1 || elapsed - lastPrint >= 300 || completed == numCombo
             lastPrint = elapsed;
             percent = 100 * completed / numCombo;
             rate = completed / elapsed;           
             estimated = (numCombo - completed) / rate;
     
-            % Usare \n al posto di \r e forzare drawnow garantisce che il log compaia subito
             fprintf('ColorTV Progress: %d/%d (%.2f%%) | Elapsed: %.1f min | ETA: %.1f min\n', ...
                 completed, numCombo, percent, elapsed/60, estimated/60);
             drawnow('update');
@@ -73,55 +72,97 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
 
     fprintf('\nStarting grid search...\n');
 
-    %rng(42);
     N = 12; M = 4;
-    
-    [H1, H2] = ndgrid(numHidden1_vals, numHidden2_vals);
-    arch_combos = [H1(:), H2(:)];
-    
-    init_weights = cell(size(arch_combos,1),1);
-    
-    for k = 1:size(arch_combos,1)
 
-        h1_init = arch_combos(k,1);
-        h2_init = arch_combos(k,2);
-        if retraining
-            data = load(filename);
-            model_sel = data.model;
-
-            w.W1 = model_sel.initial_weights.W1;
-            w.W2 = model_sel.initial_weights.W2;
-            w.W3 = model_sel.initial_weights.W3;
-        else     
-            for fold = 1:5
-                if activation_funs(1) == "leakyrelu"
-                    w.W1{fold} = initHe(h1_init,N);
-                    w.W2{fold} = initHe(h2_init,h1_init);
-                    w.W3{fold} = initHe(M,h2_init);
-                elseif activation_funs(1) == "tanh"
-                    w.W1{fold} = initXavier(h1_init,N);
-                    w.W2{fold} = initXavier(h2_init,h1_init);
-                    w.W3{fold} = initXavier(M,h2_init);
+    [H1, H2, S] = ndgrid(numHidden1_vals, numHidden2_vals, seed);
+    arch_seed_combos = [H1(:), H2(:), S(:)];
+    
+    init_weights = cell(size(arch_seed_combos,1),1);
+    
+    %% Weights inizialization
+    for k = 1:size(arch_seed_combos,1)
+        h1_init = arch_seed_combos(k,1);
+        h2_init = arch_seed_combos(k,2);
+        s_init  = arch_seed_combos(k,3);
+        
+        rng(s_init, 'twister');
+        
+        w = struct();
+        if fold_bool
+            if retraining
+                data = load(filename);
+                model_sel = data.model;
+                for fold = 1:5
+                    w.W1{fold} = model_sel.weights_init(fold).W1;
+                    w.W2{fold} = model_sel.weights_init(fold).W2;
+                    w.W3{fold} = model_sel.weights_init(fold).W3;
                 end
+                w.b1 = model_sel.weights_init(1).b1;
+                w.b2 = model_sel.weights_init(1).b2;
+                w.b3 = model_sel.weights_init(1).b3;
+            else     
+                for fold = 1:5
+                    if activation_funs(1) == "leakyrelu"
+                        w.W1{fold} = initHe(h1_init,N);
+                        w.W2{fold} = initHe(h2_init,h1_init);
+                        w.W3{fold} = initHe(M,h2_init);
+                    elseif activation_funs(1) == "tanh"
+                        w.W1{fold} = initXavier(h1_init,N);
+                        w.W2{fold} = initXavier(h2_init,h1_init);
+                        w.W3{fold} = initXavier(M,h2_init);
+                    end
+                end
+                w.b1 = zeros(h1_init,1);
+                w.b2 = zeros(h2_init,1);
+                w.b3 = zeros(M,1);
+            end
+        else
+            if retraining
+                data = load(filename);
+                model_sel = data.model;
+    
+                w.W1 = model_sel.weights_init(1).W1;
+                w.W2 = model_sel.weights_init(1).W2;
+                w.W3 = model_sel.weights_init(1).W3;
+                w.b1 = model_sel.weights_init(1).b1;
+                w.b2 = model_sel.weights_init(1).b2;
+                w.b3 = model_sel.weights_init(1).b3;
+            else     
+                if activation_funs(1) == "leakyrelu"
+                    w.W1 = initHe(h1_init,N);
+                    w.W2 = initHe(h2_init,h1_init);
+                    w.W3 = initHe(M,h2_init);
+                elseif activation_funs(1) == "tanh"
+                    w.W1 = initXavier(h1_init,N);
+                    w.W2 = initXavier(h2_init,h1_init);
+                    w.W3 = initXavier(M,h2_init);
+                end
+                w.b1 = zeros(h1_init,1);
+                w.b2 = zeros(h2_init,1);
+                w.b3 = zeros(M,1);
             end
         end
-        w.b1 = zeros(h1_init,1);
-        w.b2 = zeros(h2_init,1);
-        w.b3 = zeros(M,1);
-    
-        init_weights{k}=w;
+        init_weights{k} = w;
     end
     
     parfor i = 1:numCombo
-
-        % Convert linear index into parameter indices
         [idx_h1, idx_h2, idx_fun, idx_lambda, idx_beta,...
          idx_cg, idx_cy, idx_cr,...
          idx_tau0, idx_tau_p, idx_tau_f, idx_tau_min,...
-         idx_m, idx_patience, idx_tolerance, idx_seed] = ...
+         idx_m, idx_patience, idx_tolerance, idx_maxEpochs, idx_seed] = ...
          ind2sub([n1 n2 na nl nb ncg ncy ncr ...
-                  nt0 ntp ntf ntm nm np nt ns],i);
-
+                  nt0 ntp ntf ntm nm np nt nmaxEpochs ns],i);
+    
+        h1 = numHidden1_vals(idx_h1);
+        h2 = numHidden2_vals(idx_h2);
+        s  = seed(idx_seed);
+    
+        arch_idx = find(arch_seed_combos(:,1)==h1 & ...
+                        arch_seed_combos(:,2)==h2 & ...
+                        arch_seed_combos(:,3)==s);
+    
+        w = init_weights{arch_idx};
+    
         % Extract parameters
         h1 = numHidden1_vals(idx_h1);
         h2 = numHidden2_vals(idx_h2);
@@ -138,18 +179,15 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         m = m_vals(idx_m);
         pat = patience(idx_patience);
         tol = tolerance(idx_tolerance);
+        maxEpochs = maxEpochs_vals(idx_maxEpochs);
         s = seed(idx_seed);
 
-        arch_idx = find(arch_combos(:,1)==h1 & arch_combos(:,2)==h2);
-        
-        w = init_weights{arch_idx};
-
-        results1(i) = Neural_Network_batch_VolumeAndColorTV(...
+        results1(i) = Neural_Network_batch_VolumeAndColorTV_training(...
             h1,h2,fun,...
             lambda,beta,...
             cg,cy,cr,...
             tau0,tau_p,tau_f,tau_min,...
-            m,pat,tol,s,w);
+            m,pat,tol,s,w, use_deflection, maxEpochs);
 
         send(dq,i);
     end
@@ -161,9 +199,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
     [idx_h1, idx_h2, idx_fun, idx_lambda, idx_beta,...
      idx_cg, idx_cy, idx_cr,...
      idx_tau0, idx_tau_p, idx_tau_f, idx_tau_min,...
-     idx_m, idx_patience, idx_tolerance, idx_seed] = ...
+     idx_m, idx_patience, idx_tolerance, idx_maxEpochs, idx_seed] = ...
      ind2sub([n1 n2 na nl nb ncg ncy ncr ...
-              nt0 ntp ntf ntm nm np nt ns],bestIdx1);
+              nt0 ntp ntf ntm nm np nt nmaxEpochs ns],bestIdx1);
 
     bestParams1 = {
         numHidden1_vals(idx_h1),...
@@ -181,6 +219,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
         m_vals(idx_m),...
         patience(idx_patience),...
         tolerance(idx_tolerance),...
+        maxEpochs_vals(idx_maxEpochs),...
         seed(idx_seed)
     };
 
@@ -188,23 +227,24 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
 
 end
 
-function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL(retraining, filename)
+function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndSGPTL(retraining, filename,  use_deflection, fold_bool)
     % Grid Values
-    numHidden1_vals = [70]; %ottimali per gradiente
-    numHidden2_vals = [50]; %ottimali per gradiente
-    lambda_vals     = [1e-4 1e-5]; %ottimale per sottogradiente
-    beta_vals       = [3e-2]; %ottimo
-    delta_vals      = [1e-1]; %ottimo
-    R_vals          = [0.05]; %ottimo
-    rho_vals        = [7e-1 5e-1]; 
+    numHidden1_vals = [70];
+    numHidden2_vals = [50]; 
+    lambda_vals     = [1e-3]; 
+    beta_vals       = [2e-2]; 
+    delta_vals      = [0.5]; 
+    R_vals          = [1e-1];
+    rho_vals        = [5e-1]; 
     tau0_vals       = [0.1]; 
-    tau_p_vals      = [100]; 
+    tau_p_vals      = [200]; 
     tau_f_vals      = [0.9]; 
     tau_min_vals    = [1e-5]; 
     m_vals          = [0.1]; 
-    patience        = [300];
-    tolerance       = [1e-4];
-    activation_funs = ["tanh"];
+    patience        = [Inf];
+    tolerance       = [0];
+    maxEpochs_vals  = [20000];
+    activation_funs = ["leakyrelu"];
     seed            = [1932];
 
     % Number of combinations
@@ -223,9 +263,10 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     nm  = numel(m_vals);
     np  = numel(patience);
     nt  = numel(tolerance);
+    nmaxEpochs = numel(maxEpochs_vals);
     ns  = numel(seed);
 
-    numCombo = n1*n2*na*nl*nb*nd*nR*nrho*nt0*ntp*ntf*ntm*nm*np*nt*ns;
+    numCombo = n1*n2*na*nl*nb*nd*nR*nrho*nt0*ntp*ntf*ntm*nm*np*nt*ns*nmaxEpochs;
     fprintf('\nTotal combinations: %d\n',numCombo);
     results1 = zeros(numCombo,1);
 
@@ -245,14 +286,12 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         completed = completed + 1;
         elapsed = toc(tStart);
     
-        % Stampa la prima iterazione poi ogni 5 minuti (300 sec), oppure alla fine.
         if completed == 1 || elapsed - lastPrint >= 300 || completed == numCombo
             lastPrint = elapsed;
             percent = 100 * completed / numCombo;
             rate = completed / elapsed;           
             estimated = (numCombo - completed) / rate;
-    
-            % Usare \n al posto di \r e forzare drawnow garantisce che il log compaia subito
+
             fprintf('SGPTL Progress: %d/%d (%.2f%%) | Elapsed: %.1f min | ETA: %.1f min\n', ...
                 completed, numCombo, percent, elapsed/60, estimated/60);
             drawnow('update');
@@ -268,34 +307,74 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     
     init_weights = cell(size(arch_combos,1),1);
     
-    for k = 1:size(arch_combos,1)
-        h1_init = arch_combos(k,1);
-        h2_init = arch_combos(k,2);
-        if retraining
-            data = load(filename);
-            model_sel = data.model;
-
-            w.W1 = model_sel.initial_weights.W1;
-            w.W2 = model_sel.initial_weights.W2;
-            w.W3 = model_sel.initial_weights.W3;
-        else     
-            for fold = 1:5
-                if activation_funs(1) == "leakyrelu"
-                    w.W1{fold} = initHe(h1_init,N);
-                    w.W2{fold} = initHe(h2_init,h1_init);
-                    w.W3{fold} = initHe(M,h2_init);
-                elseif activation_funs(1) == "tanh"
-                    w.W1{fold} = initXavier(h1_init,N);
-                    w.W2{fold} = initXavier(h2_init,h1_init);
-                    w.W3{fold} = initXavier(M,h2_init);
-                end
-            end
-        end
-        w.b1 = zeros(h1_init,1);
-        w.b2 = zeros(h2_init,1);
-        w.b3 = zeros(M,1);
+    %% Weights inizialization
+    if fold_bool
+        for k = 1:size(arch_combos,1)
     
-        init_weights{k}=w;
+            h1_init = arch_combos(k,1);
+            h2_init = arch_combos(k,2);
+            if retraining
+                data = load(filename);
+                model_sel = data.model;
+    
+                for fold = 1:5
+                    w.W1{fold} = model_sel.weights_init(fold).W1;
+                    w.W2{fold} = model_sel.weights_init(fold).W2;
+                    w.W3{fold} = model_sel.weights_init(fold).W3;
+                end
+                w.b1 = model_sel.weights_init(1).b1;
+                w.b2 = model_sel.weights_init(1).b2;
+                w.b3 = model_sel.weights_init(1).b3;
+            else     
+                for fold = 1:5
+                    if activation_funs(1) == "leakyrelu"
+                        w.W1{fold} = initHe(h1_init,N);
+                        w.W2{fold} = initHe(h2_init,h1_init);
+                        w.W3{fold} = initHe(M,h2_init);
+                    elseif activation_funs(1) == "tanh"
+                        w.W1{fold} = initXavier(h1_init,N);
+                        w.W2{fold} = initXavier(h2_init,h1_init);
+                        w.W3{fold} = initXavier(M,h2_init);
+                    end
+                end
+                w.b1 = zeros(h1_init,1);
+                w.b2 = zeros(h2_init,1);
+                w.b3 = zeros(M,1);
+            end
+            
+            init_weights{k}=w;
+        end
+    else
+        for k = 1:size(arch_combos,1)
+            h1_init = arch_combos(k,1);
+            h2_init = arch_combos(k,2);
+            if retraining
+                data = load(filename);
+                model_sel = data.model;
+        
+                w.W1 = model_sel.weights_init(1).W1;
+                w.W2 = model_sel.weights_init(1).W2;
+                w.W3 = model_sel.weights_init(1).W3;
+                w.b1 = model_sel.weights_init(1).b1;
+                w.b2 = model_sel.weights_init(1).b2;
+                w.b3 = model_sel.weights_init(1).b3;
+            else     
+                if activation_funs(1) == "leakyrelu"
+                    w.W1 = initHe(h1_init,N);
+                    w.W2 = initHe(h2_init,h1_init);
+                    w.W3 = initHe(M,h2_init);
+                elseif activation_funs(1) == "tanh"
+                    w.W1 = initXavier(h1_init,N);
+                    w.W2 = initXavier(h2_init,h1_init);
+                    w.W3 = initXavier(M,h2_init);
+                end
+                w.b1 = zeros(h1_init,1);
+                w.b2 = zeros(h2_init,1);
+                w.b3 = zeros(M,1);
+            end
+            
+            init_weights{k} = w;
+        end
     end
     
     parfor i = 1:numCombo
@@ -305,9 +384,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
          idx_lambda,idx_beta,idx_delta,...
          idx_R,idx_rho,...
          idx_tau0,idx_tau_p,idx_tau_f,idx_tau_min,...
-         idx_m,idx_patience,idx_tolerance, idx_seed] = ...
+         idx_m,idx_patience,idx_tolerance, idx_nmaxEpochs, idx_seed] = ...
          ind2sub([n1 n2 na nl nb nd nR nrho ...
-                  nt0 ntp ntf ntm nm np nt ns],i);
+                  nt0 ntp ntf ntm nm np nt nmaxEpochs ns],i);
 
         % Extract parameters
         h1 = numHidden1_vals(idx_h1);
@@ -325,20 +404,32 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         m = m_vals(idx_m);
         pat = patience(idx_patience);
         tol = tolerance(idx_tolerance);
+        maxEpochs = maxEpochs_vals(idx_nmaxEpochs);
         s = seed(idx_seed);
 
         arch_idx = find(arch_combos(:,1)==h1 & arch_combos(:,2)==h2);
         
         w = init_weights{arch_idx};
 
-        results1(i) = Neural_Network_batch_VolumeAndSGPTL(...
-            h1,h2,fun,...
-            lambda,beta,...
-            delta,R,rho,...
-            tau0,tau_p,tau_f,tau_min,...
-            m,pat,tol,s,w);
-
-        send(dq,i);
+        if fold_bool
+            results1(i) = Neural_Network_batch_VolumeAndSGPTL(...
+                h1,h2,fun,...
+                lambda,beta,...
+                delta,R,rho,...
+                tau0,tau_p,tau_f,tau_min,...
+                m,pat,tol,s,w, use_deflection, maxEpochs);
+    
+            send(dq,i);
+        else
+            results1(i) = Neural_Network_batch_VolumeAndSGPTL_training(...
+                h1,h2,fun,...
+                lambda,beta,...
+                delta,R,rho,...
+                tau0,tau_p,tau_f,tau_min,...
+                m,pat,tol,s,w, use_deflection, maxEpochs);
+    
+            send(dq,i);
+        end
     end
 
     % Find best result
@@ -349,9 +440,9 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
      idx_lambda,idx_beta,idx_delta,...
      idx_R,idx_rho,...
      idx_tau0,idx_tau_p,idx_tau_f,idx_tau_min,...
-     idx_m,idx_patience,idx_tolerance,idx_seed] = ...
+     idx_m,idx_patience,idx_tolerance, idx_maxEpochs, idx_seed] = ...
      ind2sub([n1 n2 na nl nb nd nR nrho ...
-              nt0 ntp ntf ntm nm np nt ns],bestIdx1);
+              nt0 ntp ntf ntm nm np nt nmaxEpochs ns],bestIdx1);
 
     bestParams1 = {
         numHidden1_vals(idx_h1),...
@@ -369,6 +460,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
         m_vals(idx_m),...
         patience(idx_patience),...
         tolerance(idx_tolerance),...
+        maxEpochs_vals(idx_maxEpochs),...
         seed(idx_seed)
         };
 
@@ -376,17 +468,11 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
 
 end
 
-% Inizializzazione di Xavier (per tahn)
-function W = initXavier(n_out, n_in)
-    sigma = sqrt(1 / (n_in)); 
-    W = randn(n_out, n_in) * sigma;
-end
-
-% Inizializzazione He (per ReLU)
+% ReLu He inizialization 
 function W = initHe(n_out, n_in)
     sigma = sqrt(2 / n_in);
     W = randn(n_out, n_in) * sigma;
 end
 
-% grid_search_deflectedSubgradient_VolumeAndColorTV(0, 'SGPTL1')
-grid_search_deflectedSubgradient_VolumeAndSGPTL(1, 'ColorTV1')
+grid_search_deflectedSubgradient_VolumeAndColorTV(1, 'best_lambda0_001', 1, 0)
+grid_search_deflectedSubgradient_VolumeAndSGPTL(1, 'best_lambda0_001', 1, 0)

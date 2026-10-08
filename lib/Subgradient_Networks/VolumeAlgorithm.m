@@ -15,11 +15,11 @@ function [W1_bar, W2_bar, W3_bar, b1_bar, b2_bar, b3_bar, f_bar, g_bar, sigma, e
        delta_f_bar_val = f_bar - loss;
        sigma = sigma - delta_f_bar_val - delta_lambda' * g_bar;
        sigma = max(sigma, 0);
-       % Aggiorna ε dopo SS
+       % Update epsilon after Serious Step
        eps_d = eps_d - delta_f_bar_val - delta_lambda' * d_curr;
        eps_d = max(eps_d, 0);
                 
-       % Aggiorna punto di stabilità
+       % Update stability point
        W1_bar = W1; b1_bar = b1;
        W2_bar = W2; b2_bar = b2;
        W3_bar = W3; b3_bar = b3;

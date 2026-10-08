@@ -1,4 +1,4 @@
-function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w)
+function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, activation_function, lambda, beta, delta_init, R, rho, tau0, tau_p, tau_f, tau_min, m_ss,  patience, tolerance, seed, init_w, use_deflectio)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -38,9 +38,11 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     % Early Stopping parameters
     % patience                                  % # of epoch until last loss improvement            
     % tolerance                                 % threshold of improvement     
-    
-    maxEpochs = 10000;
-    
+
+    model.weights_init = struct([]);
+    model.weights_final = struct([]);
+    model.weights_best = struct([]);
+
     %% ===================================
     % K-FOLD CROSS-VALIDATION
     % ====================================
@@ -173,7 +175,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
         gamma_prev = 1;
         alpha_prev = 1;
 
-        while epoch < maxEpochs
+        while epoch <= maxEpochs
             
             % Normalized starting gradient
             E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
@@ -231,13 +233,10 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
             % RMSE validation
             err_val = B_val_norm - Yval;
             rmse_val(epoch, fold) = sqrt(mean(err_val(:).^2));
-
-            if epoch == 1
-                best_val_rmse(fold) = rmse_val(epoch, fold);
-            end
     
             % Early Stopping based on RMSE 
-            if rmse_val(epoch, fold) < best_val_rmse(fold) * (1 - tolerance)
+            if epoch == 1 || rmse_val(epoch, fold) < best_val_rmse(fold) * (1 - tolerance)
+
                 best_val_rmse(fold) = rmse_val(epoch, fold);
                 epochs_since_improvement = 0;
                 % Salva le matrici correnti
@@ -284,6 +283,24 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
             epoch = epoch + 1;
         end
+
+        %% SAVE FINAL WEIGHTS
+        model.weights_final(fold).W1 = W1;
+        model.weights_final(fold).W2 = W2;
+        model.weights_final(fold).W3 = W3;
+
+        model.weights_final(fold).b1 = b1;
+        model.weights_final(fold).b2 = b2;
+        model.weights_final(fold).b3 = b3;
+        
+        %% SAVE BEST WEIGHTS
+        model.weights_best(fold).W1 = best_W1{fold};
+        model.weights_best(fold).W2 = best_W2{fold};
+        model.weights_best(fold).W3 = best_W3{fold};
+        
+        model.weights_best(fold).b1 = best_b1{fold};
+        model.weights_best(fold).b2 = best_b2{fold};
+        model.weights_best(fold).b3 = best_b3{fold};
     end
 
     % End of training time
@@ -306,6 +323,8 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.tau_f = tau_f;
     model.tau_min = tau_min;
     model.m = m_ss;
+    model.maxEpochs = maxEpochs;
+
     model.k = k;
     model.early_stopping.patience = patience;
     model.early_stopping.tolerance = tolerance;
@@ -319,7 +338,21 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
     model.initial_weights.W2 = init_W2;
     model.initial_weights.W3 = init_W3;
 
+    model.rmse_train_curve = rmse_train;
+    model.rmse_val_curve = rmse_val;
+    model.rmse_test_curve = rmse_test;
+
     model.training_time = training_end_time - training_start_time;
+
+    model.mean_epochs = mean(final_epoch);
+    model.std_epochs  = std(final_epoch);
+    model.time_per_epoch = model.training_time / sum(final_epoch);
+
+    oscillation_per_fold = nan(1,k);
+    for fold = 1:k
+        oscillation_per_fold(fold) = compute_oscillation(rmse_train(:,fold), final_epoch(fold));
+    end
+    model.mean_oscillation = mean(oscillation_per_fold);
 
     %% Saving and plot the model results
 
@@ -327,7 +360,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL(numHidden1, numHidden2, act
 
     if avg_best_val < 0.62
         
-        modelsDir = fullfile(rootDir, 'models/SGPTL/stepsize');
+        modelsDir = fullfile(rootDir, 'models/SGPTL');
         if ~exist(modelsDir, 'dir')
             mkdir(modelsDir);
         end
@@ -391,4 +424,12 @@ function [f_ref, f_best, delta, r] = SGPTLRule(f_ref, f_best, delta, r, R, rho, 
         r = r + alpha * norm(d_curr)^2; 
     end
     f_best = min(f_best,  loss);
+end
+
+function osc = compute_oscillation(rmse_series, final_ep)
+    % rmse_series: colonna rmse_train per un fold, fino a final_ep
+    series = rmse_series(1:final_ep);
+    diffs = diff(series);
+    % Opzione A: frazione di epoche in cui la loss aumenta (non-monotonicità)
+    osc = sum(diffs > 0) / length(diffs);
 end
