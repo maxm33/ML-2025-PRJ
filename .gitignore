@@ -1,4 +1,4 @@
-CM/src/models/
-ML/src/models/
 CM/src/model_selection.m
 CM/src/script_analisy
+models/
+*.asv

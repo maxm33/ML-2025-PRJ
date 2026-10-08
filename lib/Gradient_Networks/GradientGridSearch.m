@@ -7,17 +7,17 @@ function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_
     numHidden1_vals = [70];
     numHidden2_vals = [50];
     activation_vals = ["leakyrelu"];
-    eta_vals        = [1e-2];
-    cg_vals         = [50];   
+    eta_vals        = [5e-5];
+    cg_vals         = [100];   
     cy_vals         = [200];   
-    cr_vals         = [10];   
-    lambda_vals     = [1e-3];
+    cr_vals         = [3];   
+    lambda_vals     = [1e-2 1e-3 5e-3 1e-4 1e-5 1e-6 1e-7];
     alpha_vals      = [0.9];
     batch_vals      = [500];
     patience_vals   = [Inf];
     tolerance_vals  = [0];
-    maxEpochs_vals  = [20000];
-    seed_vals       = [1932];
+    maxEpochs_vals  = [40000 80000 160000 200000];
+    seed_vals       = [679, 42, 123, 1024, 1932, 2026, 31415, 271828, 161803, 98765, 55555];
 
     % Number of combinations
     n1  = numel(numHidden1_vals);
@@ -187,7 +187,7 @@ function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_
         seed_vals(idx_seed)
     };
 
-    fprintf('\nMiglior f* (RMSE training): %.6f\n', bestScore);
+    fprintf('\nMiglior f* (MSE training): %.6f\n', bestScore);
 end
 
 % Inizializzazione Xavier (per tanh)

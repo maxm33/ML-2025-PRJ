@@ -49,9 +49,6 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     % Loss curve
     loss_history = nan(maxEpochs, 1);
 
-    % TRAINING START MEASURAMENT
-    training_start_time = posixtime(datetime('now'));
-
     % Early Stopping parameters initialization
     best_train_loss = inf;
     final_epoch = 0;
@@ -60,6 +57,9 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     %% ===================================
     % NEURAL NETWORK CONFIGURATION (fully connected)
     % ====================================
+
+    % TRAINING START MEASURAMENT
+    training_start_time = posixtime(datetime('now'));
 
     % Weights initialization
     W1 = init_w.W1;
@@ -81,7 +81,7 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     vel_W1 = zeros(size(W1));
     vel_W2 = zeros(size(W2));
     vel_W3 = zeros(size(W3));
-    
+
     vel_b1 = zeros(size(b1));
     vel_b2 = zeros(size(b2));
     vel_b3 = zeros(size(b3));
@@ -186,22 +186,20 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     end
 
     %% SAVE FINAL WEIGHTS
-        model.weights_final.W1 = W1;
-        model.weights_final.W2 = W2;
-        model.weights_final.W3 = W3;
-
-        model.weights_final.b1 = b1;
-        model.weights_final.b2 = b2;
-        model.weights_final.b3 = b3;
+    model.weights_final.W1 = W1;
+    model.weights_final.W2 = W2;
+    model.weights_final.W3 = W3;
+    model.weights_final.b1 = b1;
+    model.weights_final.b2 = b2;
+    model.weights_final.b3 = b3;
         
-        %% SAVE BEST WEIGHTS
-        model.weights_best.W1 = best_W1;
-        model.weights_best.W2 = best_W2;
-        model.weights_best.W3 = best_W3;
-        
-        model.weights_best.b1 = best_b1;
-        model.weights_best.b2 = best_b2;
-        model.weights_best.b3 = best_b3;
+    %% SAVE BEST WEIGHTS
+    model.weights_best.W1 = best_W1;
+    model.weights_best.W2 = best_W2;
+    model.weights_best.W3 = best_W3;
+    model.weights_best.b1 = best_b1;
+    model.weights_best.b2 = best_b2;
+    model.weights_best.b3 = best_b3;
 
     if final_epoch == 0
         final_epoch = maxEpochs;  % il ciclo è arrivato a maxEpochs
@@ -241,8 +239,8 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
     unique_id = uuid_str(1:8);
 
     filename = fullfile(modelsDir, sprintf( ...
-            'Gradient-h1-%d-h2-%d-lambda-%g_%s.mat', ...
-                numHidden1, numHidden2, lambda, unique_id));
+            'Gradient-h1-%d-h2-%d-eta-%g-alpha-%g_%s.mat', ...
+            numHidden1, numHidden2, eta, alpha, unique_id));
 
     save(filename, 'model');
 

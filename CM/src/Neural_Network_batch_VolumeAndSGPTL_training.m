@@ -134,7 +134,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL_training(numHidden1, numHid
     % BACKPROPAGATION TRAINING LOOP
     % ====================================
     while epoch <= maxEpochs
-            
+       
         % Normalized starting gradient
         E_out =  2 * (Yhat - B_train_norm) / (P_train * size(B_train_norm, 2));
 
@@ -194,6 +194,7 @@ function score = Neural_Network_batch_VolumeAndSGPTL_training(numHidden1, numHid
             model.weights_best.b1 = best_b1;
             model.weights_best.b2 = best_b2;
             model.weights_best.b3 = best_b3;
+
         else
             epochs_since_improvement = epochs_since_improvement + 1;
         end
@@ -281,7 +282,8 @@ function score = Neural_Network_batch_VolumeAndSGPTL_training(numHidden1, numHid
         [~, name] = fileparts(filename);
         
         plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot_train_loss(loss_history, plot_file);
+
+        PlotTrainingLoss(loss_history, plot_file);
     end
 
     score = best_train_loss;

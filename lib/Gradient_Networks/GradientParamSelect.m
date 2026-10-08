@@ -1,4 +1,4 @@
-%% Script per Analisi Statistica dei Top 20 Modelli - SINCRONIZZATO
+%% Script per Analisi Statistica dei Top 50 Modelli - SINCRONIZZATO
 clear; clc;
 
 % Percorso della cartella

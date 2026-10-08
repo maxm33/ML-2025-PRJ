@@ -157,7 +157,6 @@ function score = Neural_Network_batch_VolumeAndColorTV_training(numHidden1, numH
         %% Stepsize-restricted Rule
             
         [alpha, d_curr, gamma] = StepsizeRestricted(eps_d, sigma, alpha_prev, d_prev, g, gamma_prev, tau, beta, f_lev, loss, epoch, use_deflection);
-
            
         %% Weights update
 
@@ -285,7 +284,8 @@ function score = Neural_Network_batch_VolumeAndColorTV_training(numHidden1, numH
         [~, name] = fileparts(filename);
         
         plot_file = fullfile(modelsDir, [name '_plot.png']);
-        Plot_train_loss(loss_history, plot_file);
+
+        PlotTrainingLoss(loss_history, plot_file);
     end
 
     score = best_train_loss;

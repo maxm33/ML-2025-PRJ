@@ -12,13 +12,6 @@ function [lambda_star, results, QRsolver] = Least_Squares_QR()
 %       columns 2:13  -> input features X (12 features)
 %       columns 14:17 -> targets Y (4 outputs)
 %
-%   The function performs:
-%       1. 80/20 hold-out split
-%       2. 5-fold cross-validation on the training/validation set
-%       3. Training-fold normalization
-%       4. Ridge regression solved using thin QR
-%       5. Selection of lambda based on mean validation RMSE
-%       6. Generation of the model-selection plot
 
     function [Q, R] = computeThinQR(A)
         [m, n] = size(A);
@@ -32,7 +25,7 @@ function [lambda_star, results, QRsolver] = Least_Squares_QR()
         x = A(:,1);
         s = -sign(x(1)) * norm(x);
         if s == 0
-            s = norm(x); % evita collasso dello shift se x(1) == 0
+            s = norm(x);
         end
         e1 = zeros(m,1);
         e1(1) = s;
@@ -60,11 +53,11 @@ function [lambda_star, results, QRsolver] = Least_Squares_QR()
     X = data(:, 2:13);
     Y = data(:, 14:17);
     
-    d = size(X, 2);          % numero di feature (12)
-    n_outputs = size(Y, 2);  % numero di target (4)
+    d = size(X, 2);          % number of featurs (12)
+    n_outputs = size(Y, 2);  % number of outputs (4)
     n_samples = size(X, 1);
 
-    % --- Normalizzazione sull'intero dataset ---
+    %% Dataset normalization
     X_mean = mean(X);
     X_std  = max(std(X), 1e-8);
     Y_mean = mean(Y);
@@ -73,10 +66,10 @@ function [lambda_star, results, QRsolver] = Least_Squares_QR()
     Xn = (X - X_mean) ./ X_std;
     Yn = (Y - Y_mean) ./ Y_std;
 
-    % Aggiunta colonna di bias
+    % Bias column
     Xb = [ones(n_samples, 1), Xn];
 
-    %% Griglia di lambda da testare
+    %% Lambda values tested
     lambdas = [0, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1000, 10000];
     mse_train = zeros(length(lambdas), 1);
 
@@ -90,16 +83,15 @@ function [lambda_star, results, QRsolver] = Least_Squares_QR()
         [Q, R] = computeThinQR(X_aug);
         theta = R \ (Q' * Y_aug);
 
-        % --- MSE Training ---
+        % MSE Training 
         Yhat = Xb * theta;
         mse_train(i) = mean((Yhat - Yn).^2, 'all'); 
     end
 
-    %% Select lambda* (lambda con MSE minimo)
+    %% Select lambda with minimum MSE
     [~, best_idx] = min(mse_train);
     lambda_star = lambdas(best_idx);
 
-    %% Stampa Risultati
     fprintf('\n');
     fprintf('%12s | %12s\n', 'lambda', 'MSE train');
     fprintf('%s\n', repmat('-', 1, 29));
@@ -108,10 +100,10 @@ function [lambda_star, results, QRsolver] = Least_Squares_QR()
     end
     fprintf('\nlambda* selezionato = %g\n', lambda_star);
 
-    %% Grafico MSE Training al variare di lambda
+    %% MSE Training varyng lambda values
     lambdas_plot = lambdas;
-    lambdas_plot(lambdas_plot == 0) = 1e-6; % Per scala log con lambda = 0
-
+    lambdas_plot(lambdas_plot == 0) = 1e-6; 
+    
     figure;
     plot(log10(lambdas_plot), mse_train, '-o', 'LineWidth', 1.5);
     xlabel('log_{10}(\lambda)');

@@ -120,7 +120,6 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndC
             if retraining
                 data = load(filename);
                 model_sel = data.model;
-    
                 w.W1 = model_sel.weights_init(1).W1;
                 w.W2 = model_sel.weights_init(1).W2;
                 w.W3 = model_sel.weights_init(1).W3;
@@ -306,7 +305,7 @@ function [bestParams1, bestScore1] = grid_search_deflectedSubgradient_VolumeAndS
     arch_combos = [H1(:), H2(:)];
     
     init_weights = cell(size(arch_combos,1),1);
-    
+
     %% Weights inizialization
     if fold_bool
         for k = 1:size(arch_combos,1)
@@ -476,3 +475,4 @@ end
 
 grid_search_deflectedSubgradient_VolumeAndColorTV(1, 'best_lambda0_001', 1, 0)
 grid_search_deflectedSubgradient_VolumeAndSGPTL(1, 'best_lambda0_001', 1, 0)
+
