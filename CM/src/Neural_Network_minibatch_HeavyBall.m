@@ -1,4 +1,4 @@
-function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_function, eta, lambda, alpha, batch_size, seed, initWeights, normalization)
+function score = Neural_Network_minibatch_HeavyBall(numHidden1, numHidden2, activation_function, eta, lambda, alpha, batch_size, seed, initWeights, normalization)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -77,7 +77,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
         
         % HE-KAIMING WEIGHTS INITIALIZATION
         if isempty(initWeights)
-            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientInitializeWeights(numHidden1, numHidden2, N, M);
+            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = HeavyBallInitializeWeights(numHidden1, numHidden2, N, M);
         else
             W1 = initWeights(fold).W1;
             W2 = initWeights(fold).W2;
@@ -117,7 +117,7 @@ function score = Neural_Network_minibatch(numHidden1, numHidden2, activation_fun
                 A_b = A(idx,:);
                 B_b = B(idx,:);
 
-            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientUpdateWeights(W1, W2, W3, b1, b2, b3, ...
+            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = HeavyBallUpdateWeights(W1, W2, W3, b1, b2, b3, ...
                     vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3, ...
                     A_b, B_b, eta, lambda, alpha, activation_function);
             end

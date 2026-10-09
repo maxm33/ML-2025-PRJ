@@ -1,4 +1,4 @@
-function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_val)
+function [bestParams, bestScore] = grid_search_hb(retraining, model_path, cross_val)
     if nargin < 1, retraining = false; end
     if nargin < 2, model_path = ''; end
     if nargin < 3, cross_val = false; end
@@ -155,7 +155,7 @@ function [bestParams, bestScore] = grid_search_mb(retraining, model_path, cross_
         end
 
         % Train network
-        results(i) = Neural_Network_minibatch_training(...
+        results(i) = Neural_Network_minibatch_HeavyBall_training(...
             h1, h2, activation, lambda, eta, green, yellow, red, alpha, batch, s, pat, tol, w, maxEpochs);
 
         % Notify progress
@@ -202,4 +202,4 @@ function W = initHe(n_out, n_in)
     W = randn(n_out, n_in) * sigma;
 end
 
-grid_search_mb(1, 'best_lambda0_001');
+grid_search_hb(1, 'best_lambda0_001');

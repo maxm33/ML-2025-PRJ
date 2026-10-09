@@ -1,4 +1,4 @@
-function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activation_function, lambda, initial_eta, cg, cy, cr, alpha, batch_size, seed, patience, tolerance, init_w, maxEpochs)
+function score = Neural_Network_minibatch_HeavyBall_training(numHidden1, numHidden2, activation_function, lambda, initial_eta, cg, cy, cr, alpha, batch_size, seed, patience, tolerance, init_w, maxEpochs)
 
     %% MAKE SHARED LIBRARY FUNCTIONS AVAILABLE
     rootDir = fileparts(mfilename('fullpath'));
@@ -151,7 +151,7 @@ function score = Neural_Network_minibatch_training(numHidden1, numHidden2, activ
             A_b = A(idx,:);
             B_b = B(idx,:);
 
-            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = GradientUpdateWeights(W1, W2, W3, b1, b2, b3, ...
+            [W1, W2, W3, b1, b2, b3, vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3] = HeavyBallUpdateWeights(W1, W2, W3, b1, b2, b3, ...
                  vel_W1, vel_W2, vel_W3, vel_b1, vel_b2, vel_b3, ...
                  A_b, B_b, eta_epoch, lambda, alpha, batch_size, activation_function);
         end
