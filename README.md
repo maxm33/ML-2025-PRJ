@@ -9,6 +9,6 @@ Giorgio Chelli, Massimo Monai – A.Y. 2025/2026
 3. A1: run GradientGridSearch.
 
 ## Parameters of SubgradientGridSearch
-use_deflection: 1 = Volume Algorithm, 0 = pure subgradient \n
-retraining, filename: to reuse the initial weights stored in a saved model ('best_lambda0_001' are the weights used for experiments in the report)\n
-fold_bool: used for cross-validation in ML projects - fix to 0\n
+use_deflection: 1 = Volume Algorithm, 0 = pure subgradient 
+retraining, filename: to reuse the initial weights stored in a saved model ('best_lambda0_001' are the weights used for experiments in the report) 
+fold_bool: used for cross-validation in ML projects - fix to 0 
