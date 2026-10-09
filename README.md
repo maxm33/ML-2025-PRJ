@@ -4,7 +4,7 @@ Giorgio Chelli, Massimo Monai – A.Y. 2025/2026
 
 <br>
 
-Project Track>:
+Project Track:
 
 <br>
 
