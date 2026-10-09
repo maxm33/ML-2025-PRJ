@@ -1,8 +1,16 @@
-![Image](project_track.jpg)
-
 # CM – Group 48 (Project 4 ML)
 
 Giorgio Chelli, Massimo Monai – A.Y. 2025/2026
+
+<br>
+
+Project Track>:
+
+<br>
+
+![Image](project_track.jpg)
+
+<br>
 
 ## Files that run the models
 
@@ -56,7 +64,7 @@ where:
 
 <br>
 
-- `retraining`, `filename`: to reuse the initial weights stored in a saved model ('best_lambda0_001' are the weights used for experiments in the report);
+- `retraining`, `filename`: to reuse the initial weights stored in a saved model (`best_lambda0_001` are the weights used for experiments in the report);
 
 <br>
 
@@ -72,7 +80,7 @@ grid_search(retraining, filename, fold_bool)
 
 where:
 
-- `retraining`, `filename`: to reuse the initial weights stored in a saved model ('best_lambda0_001' are the weights used for experiments in the report);
+- `retraining`, `filename`: to reuse the initial weights stored in a saved model (`best_lambda0_001` are the weights used for experiments in the report);
 
 <br>
 
